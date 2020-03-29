@@ -12,7 +12,7 @@
 #############################
 # Variables (Can be changed depends on your preferred values)
 # Script name
-MyScriptName='Bonveio'
+MyScriptName='XAMJYSS143'
 
 # OpenSSH Ports
 SSH_Port1='22'
@@ -30,7 +30,7 @@ Stunnel_Port1='443' # through Dropbear
 Stunnel_Port2='444' # through OpenSSH
 
 # OpenVPN Ports
-OpenVPN_Port1='110' # take note when you change this port, openvpn sun noload config will not work
+OpenVPN_Port1='69' # take note when you change this port, openvpn sun noload config will not work
 
 # Privoxy Ports (must be 1024 or higher)
 Privoxy_Port1='8000'
@@ -809,7 +809,7 @@ function ScriptMessage(){
  echo -e " Open release version"
  echo -e ""
  echo -e " Script created by Bonveio"
- echo -e ""
+ echo -e " Editted by XAMJYSS143"
 }
 
 
