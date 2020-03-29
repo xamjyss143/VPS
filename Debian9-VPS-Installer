@@ -33,10 +33,8 @@ Stunnel_Port2='444' # through OpenSSH
 OpenVPN_Port1='69' # take note when you change this port, openvpn sun noload config will not work
 
 # Privoxy Ports (must be 1024 or higher)
-Privoxy_Port1='8000'
-Privoxy_Port2='8080'
-Privoxy_Port3='6969'
-Privoxy_Port4='9696'
+Privoxy_Port1='6969'
+Privoxy_Port2='9696'
 # OpenVPN Config Download Port
 OvpnDownload_Port='86' # Before changing this value, please read this document. It contains all unsafe ports for Google Chrome Browser, please read from line #23 to line #89: https://chromium.googlesource.com/chromium/src.git/+/refs/heads/master/net/base/port_util.cc
 
