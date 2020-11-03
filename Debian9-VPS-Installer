@@ -566,12 +566,14 @@ myPrivoxy
  apt install squid -y
  
 # Squid Ports (must be 1024 or higher)
- Proxy_Port='8000'
+ Proxy_Port1='8000'
+ Proxy_Port2='8118'
  cat <<mySquid > /etc/squid/squid.conf
 acl VPN dst $(wget -4qO- http://ipinfo.io/ip)/32
 http_access allow VPN
 http_access deny all 
-http_port 0.0.0.0:$Proxy_Port
+http_port 0.0.0.0:$Proxy_Port1
+http_port 0.0.0.0:$Proxy_Port2
 coredump_dir /var/spool/squid
 dns_nameservers 1.1.1.1 1.0.0.1
 refresh_pattern ^ftp: 1440 20% 10080
