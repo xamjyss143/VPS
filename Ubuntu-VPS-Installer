@@ -260,7 +260,6 @@ proto tcp
 ca /etc/openvpn/ca.crt
 cert /etc/openvpn/xbarts.crt
 key /etc/openvpn/xbarts.key
-duplicate-cn
 dh none
 persist-tun
 persist-key
@@ -299,7 +298,6 @@ proto udp
 ca /etc/openvpn/ca.crt
 cert /etc/openvpn/xbarts.crt
 key /etc/openvpn/xbarts.key
-duplicate-cn
 dh none
 persist-tun
 persist-key
@@ -644,7 +642,7 @@ $(cat /etc/openvpn/ca.crt)
 </ca>
 EOF152
 
-cat <<EOF16> /var/www/openvpn/SunConfig.ovpn
+cat <<EOF16> /var/www/openvpn/XJ-TU-UDP.ovpn
 # Credits to XAMJYSS
 
 client
@@ -674,7 +672,7 @@ $(cat /etc/openvpn/ca.crt)
 </ca>
 EOF16
 
-cat <<EOF160> /var/www/openvpn/GStories.ovpn
+cat <<EOF160> /var/www/openvpn/XJ-Stories-TCP.ovpn
 # Credits to XAMJYSS
 
 client
@@ -699,46 +697,47 @@ setenv CLIENT_CERT 0
 reneg-sec 0
 verb 1
 http-proxy $(curl -s http://ipinfo.io/ip || wget -q http://ipinfo.io/ip) $Proxy_Port2
-http-proxy-option CUSTOM-HEADER Host tweetdeck.twitter.com
-http-proxy-option CUSTOM-HEADER X-Forwarded-For tweetdeck.twitter.com
+http-proxy-option CUSTOM-HEADER CONNECT HTTP/1.0
+http-proxy-option CUSTOM-HEADER Host tiktoktreats.onelink.me
+http-proxy-option CUSTOM-HEADER X-Online-Host tiktoktreats.onelink.me
+http-proxy-option CUSTOM-HEADER X-Forward-Host tiktoktreats.onelink.me
+http-proxy-option CUSTOM-HEADER Connection:Keep-Alive
 
 <ca>
 $(cat /etc/openvpn/ca.crt)
 </ca>
 EOF160
 
-cat <<EOF17> /var/www/openvpn/SunNoloadConfig.ovpn
+cat <<EOF17> /var/www/openvpn/XJ-GAMES.ovpn
 # Credits to XAMJYSS
 
 client
 dev tun
-proto tcp-client
+proto tcp
 remote $IPADDR $OpenVPN_Port1
 remote-cert-tls server
-bind
-float
+resolv-retry infinite
+nobind
 tun-mtu 1500
 tun-mtu-extra 32
 mssfix 1450
-mute-replay-warnings
-connect-retry-max 9999
-redirect-gateway def1
-connect-retry 0 1
-resolv-retry infinite
-setenv CLIENT_CERT 0
-persist-tun
 persist-key
+persist-tun
 auth-user-pass
 auth none
 auth-nocache
-auth-retry interact
 cipher none
 keysize 0
 comp-lzo
+setenv CLIENT_CERT 0
 reneg-sec 0
-verb 0
-nice -20
-log /dev/null
+verb 2
+http-proxy $(curl -s http://ipinfo.io/ip || wget -q http://ipinfo.io/ip) $Proxy_Port2
+http-proxy-option VERSION 1.1
+http-proxy-option CUSTOM-HEADER "Host: c3cdn.ml.youngjoygame.com"
+http-proxy-option CUSTOM-HEADER "X-Online-Host: c3cdn.ml.youngjoygame.com"
+http-proxy-option CUSTOM-HEADER "X-Forward-Host: c3cdn.ml.youngjoygame.com"
+http-proxy-option CUSTOM-HEADER "Connection: Keep-Alive"
 <ca>
 $(cat /etc/openvpn/ca.crt)
 </ca>
