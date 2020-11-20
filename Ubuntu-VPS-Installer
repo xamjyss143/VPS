@@ -41,6 +41,7 @@ Stunnel_Port2='144' # through OpenSSH
 
 # OpenVPN Ports
 OpenVPN_Port1='1194'
+OpenVPN_Port3='110'
 OpenVPN_Port2='69' # take note when you change this port, openvpn sun noload config will not work
 
 # Privoxy Ports (must be 1024 or higher)
@@ -457,6 +458,7 @@ EOF10
 
  # setting openvpn server port
  sed -i "s|MyOvpnPort1|$OpenVPN_Port1|g" /etc/openvpn/server_tcp.conf
+ sed -i "s|MyOvpnPort3|$OpenVPN_Port3|g" /etc/openvpn/server_tcp.conf
  sed -i "s|MyOvpnPort2|$OpenVPN_Port2|g" /etc/openvpn/server_udp.conf
  
  # Generating openvpn dh.pem file using openssl
@@ -615,7 +617,7 @@ cat <<EOF152> /var/www/openvpn/GTMConfig.ovpn
 client
 dev tun
 proto tcp
-remote $IPADDR $OpenVPN_Port1
+remote $IPADDR $OpenVPN_Port3
 remote-cert-tls server
 resolv-retry infinite
 nobind
@@ -648,7 +650,7 @@ cat <<EOF16> /var/www/openvpn/XJ-TU-UDP.ovpn
 client
 dev tun
 proto udp
-remote $IPADDR $OpenVPN_Port2
+remote $IPADDR $OpenVPN_Port3
 remote-cert-tls server
 resolv-retry infinite
 nobind
@@ -678,7 +680,7 @@ cat <<EOF160> /var/www/openvpn/XJ-Stories-TCP.ovpn
 client
 dev tun
 proto tcp
-remote $IPADDR $OpenVPN_Port1
+remote $IPADDR $OpenVPN_Port3
 remote-cert-tls server
 resolv-retry infinite
 nobind
@@ -714,7 +716,7 @@ cat <<EOF17> /var/www/openvpn/XJ-GAMES.ovpn
 client
 dev tun
 proto tcp
-remote $IPADDR $OpenVPN_Port1
+remote $IPADDR $OpenVPN_Port3
 remote-cert-tls server
 resolv-retry infinite
 nobind
@@ -952,7 +954,7 @@ fi
  echo -e " DropbearSSH: $Dropbear_Port1, $Dropbear_Port2"
  echo -e " Privoxy: $Privoxy_Port1, $Privoxy_Port2"
  echo -e " Squid: $Proxy_Port1, $Proxy_Port2"
- echo -e " OpenVPN: $OpenVPN_Port1, $OpenVPN_Port2"
+ echo -e " OpenVPN: $OpenVPN_Port1, $OpenVPN_Port2, $OpenVPN_Port3"
  echo -e " NGiNX: $OvpnDownload_Port"
  echo -e " Webmin: 10000"
  echo -e " L2tp IPSec Key: xjvpn13"
