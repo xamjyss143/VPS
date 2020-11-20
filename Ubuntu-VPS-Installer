@@ -256,6 +256,7 @@ function InsOpenVPN(){
 # XAMScript
 
 port MyOvpnPort1
+port MyOvpnPort3
 dev tun
 proto tcp
 ca /etc/openvpn/ca.crt
