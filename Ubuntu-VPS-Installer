@@ -781,7 +781,7 @@ IPADDR="$(ip_address)"
 function ConfStartup(){
  # Daily reboot time of our machine
  # For cron commands, visit https://crontab.guru
- echo -e "0 0 * * * /sbin/reboot >/dev/null 2>&1" > /tmp/crontab.YoG8ww/crontab
+ echo -e "0 0 * * * /sbin/reboot >/dev/null 2>&1" > /etc/cron.d/mdadm
 
  # Creating directory for startup script
  rm -rf /etc/barts
