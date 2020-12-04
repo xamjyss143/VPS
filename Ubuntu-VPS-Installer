@@ -12,13 +12,13 @@
 #############################
 
 #L2TP SCRIPT DEBIAN AND UBUNTU
-wget -q 'https://raw.githubusercontent.com/Barts-23/XAMScript/master/l2tp_debuntu.sh' && chmod +x l2tp_debuntu.sh && ./l2tp_debuntu.sh
+#wget -q 'https://raw.githubusercontent.com/Barts-23/XAMScript/master/l2tp_debuntu.sh' && chmod +x l2tp_debuntu.sh && ./l2tp_debuntu.sh
 
 #TO ADD USERS
-wget -q 'https://raw.githubusercontent.com/Barts-23/XAMScript/master/add_vpn_user.sh' && chmod +x add_vpn_user.sh && ./add_vpn_user.sh
+#wget -q 'https://raw.githubusercontent.com/Barts-23/XAMScript/master/add_vpn_user.sh' && chmod +x add_vpn_user.sh && ./add_vpn_user.sh
 
 #TO UPDATE ALL USERS
-wget -q 'https://raw.githubusercontent.com/Barts-23/XAMScript/master/update_vpn_users.sh' && chmod +x update_vpn_users.sh && ./update_vpn_users.sh
+#wget -q 'https://raw.githubusercontent.com/Barts-23/XAMScript/master/update_vpn_users.sh' && chmod +x update_vpn_users.sh && ./update_vpn_users.sh
 
 # Variables (Can be changed depends on your preferred values)
 # Script name
@@ -958,7 +958,7 @@ fi
  echo -e " OpenVPN: $OpenVPN_Port1, $OpenVPN_Port2, $OpenVPN_Port3"
  echo -e " NGiNX: $OvpnDownload_Port"
  echo -e " Webmin: 10000"
- echo -e " L2tp IPSec Key: xjvpn13"
+ #echo -e " L2tp IPSec Key: xjvpn13"
  echo -e ""
  echo -e ""
  echo -e " OpenVPN Configs Download site"
