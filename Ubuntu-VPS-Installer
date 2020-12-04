@@ -651,7 +651,7 @@ cat <<EOF16> /var/www/openvpn/XJ-TU-UDP.ovpn
 client
 dev tun
 proto udp
-remote $IPADDR $OpenVPN_Port3
+remote $IPADDR $OpenVPN_Port2
 remote-cert-tls server
 resolv-retry infinite
 nobind
@@ -781,7 +781,7 @@ IPADDR="$(ip_address)"
 function ConfStartup(){
  # Daily reboot time of our machine
  # For cron commands, visit https://crontab.guru
- echo -e "0 4\t* * *\troot\treboot" > /etc/cron.d/b_reboot_job
+ echo -e "0 0 * * * /sbin/reboot >/dev/null 2>&1" > /etc/cron.d/b_reboot_job
 
  # Creating directory for startup script
  rm -rf /etc/barts
