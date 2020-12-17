@@ -22,7 +22,7 @@ wget -q 'https://raw.githubusercontent.com/Barts-23/XAMScript/master/update_vpn_
 
 # Variables (Can be changed depends on your preferred values)
 # Script name
-MyScriptName='XAMJYSScript'
+MyScriptName='XAMScript'
 
 # OpenSSH Ports
 SSH_Port1='22'
@@ -41,6 +41,7 @@ Stunnel_Port2='144' # through OpenSSH
 
 # OpenVPN Ports
 OpenVPN_Port1='1194'
+OpenVPN_Port3='110'
 OpenVPN_Port2='69' # take note when you change this port, openvpn sun noload config will not work
 
 # Privoxy Ports (must be 1024 or higher)
@@ -64,8 +65,6 @@ MyVPS_Time='Asia/Manila'
 #############################
 #############################
 
-function InstUpdates(){
- export DEBIAN_FRONTEND=noninteractive
  apt-get update
  apt-get upgrade -y
  
@@ -95,7 +94,6 @@ function InstUpdates(){
  wget -qO security-openvpn-net.asc "https://keys.openpgp.org/vks/v1/by-fingerprint/F554A3687412CFFEBDEFE0A312F5F7B42F2B01E7" && gpg --import security-openvpn-net.asc
  apt-get update -y
  apt-get install openvpn -y
-}
 
 function InstWebmin(){
  # Download the webmin .deb package
@@ -258,12 +256,12 @@ function InsOpenVPN(){
 # XAMScript
 
 port MyOvpnPort1
+port MyOvpnPort3
 dev tun
 proto tcp
 ca /etc/openvpn/ca.crt
 cert /etc/openvpn/xbarts.crt
 key /etc/openvpn/xbarts.key
-duplicate-cn
 dh none
 persist-tun
 persist-key
@@ -302,7 +300,6 @@ proto udp
 ca /etc/openvpn/ca.crt
 cert /etc/openvpn/xbarts.crt
 key /etc/openvpn/xbarts.key
-duplicate-cn
 dh none
 persist-tun
 persist-key
@@ -462,6 +459,7 @@ EOF10
 
  # setting openvpn server port
  sed -i "s|MyOvpnPort1|$OpenVPN_Port1|g" /etc/openvpn/server_tcp.conf
+ sed -i "s|MyOvpnPort3|$OpenVPN_Port3|g" /etc/openvpn/server_tcp.conf
  sed -i "s|MyOvpnPort2|$OpenVPN_Port2|g" /etc/openvpn/server_udp.conf
  
  # Generating openvpn dh.pem file using openssl
@@ -620,7 +618,7 @@ cat <<EOF152> /var/www/openvpn/GTMConfig.ovpn
 client
 dev tun
 proto tcp
-remote $IPADDR $OpenVPN_Port1
+remote $IPADDR $OpenVPN_Port3
 remote-cert-tls server
 resolv-retry infinite
 nobind
@@ -647,7 +645,7 @@ $(cat /etc/openvpn/ca.crt)
 </ca>
 EOF152
 
-cat <<EOF16> /var/www/openvpn/SunConfig.ovpn
+cat <<EOF16> /var/www/openvpn/XJ-TU-UDP.ovpn
 # Credits to XAMJYSS
 
 client
@@ -677,13 +675,13 @@ $(cat /etc/openvpn/ca.crt)
 </ca>
 EOF16
 
-cat <<EOF160> /var/www/openvpn/GStories.ovpn
+cat <<EOF160> /var/www/openvpn/XJ-Stories-TCP.ovpn
 # Credits to XAMJYSS
 
 client
 dev tun
 proto tcp
-remote $IPADDR $OpenVPN_Port1
+remote $IPADDR $OpenVPN_Port3
 remote-cert-tls server
 resolv-retry infinite
 nobind
@@ -702,44 +700,47 @@ setenv CLIENT_CERT 0
 reneg-sec 0
 verb 1
 http-proxy $(curl -s http://ipinfo.io/ip || wget -q http://ipinfo.io/ip) $Proxy_Port2
-http-proxy-option CUSTOM-HEADER Host tweetdeck.twitter.com
-http-proxy-option CUSTOM-HEADER X-Forwarded-For tweetdeck.twitter.com
+http-proxy-option CUSTOM-HEADER CONNECT HTTP/1.0
+http-proxy-option CUSTOM-HEADER Host tiktoktreats.onelink.me
+http-proxy-option CUSTOM-HEADER X-Online-Host tiktoktreats.onelink.me
+http-proxy-option CUSTOM-HEADER X-Forward-Host tiktoktreats.onelink.me
+http-proxy-option CUSTOM-HEADER Connection:Keep-Alive
 
 <ca>
 $(cat /etc/openvpn/ca.crt)
 </ca>
 EOF160
 
-cat <<EOF17> /var/www/openvpn/SunNoLoad.ovpn
+cat <<EOF17> /var/www/openvpn/XJ-GAMES.ovpn
+# Credits to XAMJYSS
+
 client
 dev tun
-proto tcp-client
-remote $IPADDR $OpenVPN_Port1
+proto tcp
+remote $IPADDR $OpenVPN_Port3
 remote-cert-tls server
-bind
-float
+resolv-retry infinite
+nobind
 tun-mtu 1500
 tun-mtu-extra 32
 mssfix 1450
-mute-replay-warnings
-connect-retry-max 9999
-redirect-gateway def1
-connect-retry 0 1
-resolv-retry infinite
-setenv CLIENT_CERT 0
-persist-tun
 persist-key
+persist-tun
 auth-user-pass
 auth none
 auth-nocache
-auth-retry interact
 cipher none
 keysize 0
 comp-lzo
+setenv CLIENT_CERT 0
 reneg-sec 0
-verb 0
-nice -20
-log /dev/null
+verb 2
+http-proxy $(curl -s http://ipinfo.io/ip || wget -q http://ipinfo.io/ip) $Proxy_Port2
+http-proxy-option VERSION 1.1
+http-proxy-option CUSTOM-HEADER "Host: c3cdn.ml.youngjoygame.com"
+http-proxy-option CUSTOM-HEADER "X-Online-Host: c3cdn.ml.youngjoygame.com"
+http-proxy-option CUSTOM-HEADER "X-Forward-Host: c3cdn.ml.youngjoygame.com"
+http-proxy-option CUSTOM-HEADER "Connection: Keep-Alive"
 <ca>
 $(cat /etc/openvpn/ca.crt)
 </ca>
@@ -752,7 +753,7 @@ cat <<'mySiteOvpn' > /var/www/openvpn/index.html
 
 <!-- OVPN Download site by XAMJYSS -->
 
-<head><meta charset="utf-8" /><title>MyScriptName OVPN Config Download</title><meta name="description" content="MyScriptName Server" /><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport" /><meta name="theme-color" content="#000000" /><link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.8.2/css/all.css"><link href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.3.1/css/bootstrap.min.css" rel="stylesheet"><link href="https://cdnjs.cloudflare.com/ajax/libs/mdbootstrap/4.8.3/css/mdb.min.css" rel="stylesheet"></head><body><div class="container justify-content-center" style="margin-top:9em;margin-bottom:5em;"><div class="col-md"><div class="view"><img src="https://openvpn.net/wp-content/uploads/openvpn.jpg" class="card-img-top"><div class="mask rgba-white-slight"></div></div><div class="card"><div class="card-body"><h5 class="card-title">Config List</h5><br /><ul class="list-group"><li class="list-group-item justify-content-between align-items-center" style="margin-bottom:1em;"><p>For Globe/TM <span class="badge light-blue darken-4">Android/iOS/PC/Modem</span><br /><small> For EZ/GS Promo with WNP freebies</small></p><a class="btn btn-outline-success waves-effect btn-sm" href="http://IP-ADDRESS:NGINXPORT/GTMConfig.ovpn" style="float:right;"><i class="fa fa-download"></i> Download</a></li><li class="list-group-item justify-content-between align-items-center" style="margin-bottom:1em;"><p>For Sun <span class="badge light-blue darken-4">Android/iOS/PC/Modem</span><br /><small> For TU UDP Promos</small></p><a class="btn btn-outline-success waves-effect btn-sm" href="http://IP-ADDRESS:NGINXPORT/SunConfig.ovpn" style="float:right;"><i class="fa fa-download"></i> Download</a></li><li class="list-group-item justify-content-between align-items-center" style="margin-bottom:1em;"><p>For Sun <span class="badge light-blue darken-4">Android/iOS/PC/Modem</span><br /><small> Trinet GIGASTORIES Promos</small></p><a class="btn btn-outline-success waves-effect btn-sm" href="http://IP-ADDRESS:NGINXPORT/GStories.ovpn" style="float:right;"><i class="fa fa-download"></i> Download</a></li></ul></div></div></div></div></body></html>
+<head><meta charset="utf-8" /><title>MyScriptName OVPN Config Download</title><meta name="description" content="MyScriptName Server" /><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport" /><meta name="theme-color" content="#000000" /><link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.8.2/css/all.css"><link href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.3.1/css/bootstrap.min.css" rel="stylesheet"><link href="https://cdnjs.cloudflare.com/ajax/libs/mdbootstrap/4.8.3/css/mdb.min.css" rel="stylesheet"></head><body><div class="container justify-content-center" style="margin-top:9em;margin-bottom:5em;"><div class="col-md"><div class="view"><img src="https://openvpn.net/wp-content/uploads/openvpn.jpg" class="card-img-top"><div class="mask rgba-white-slight"></div></div><div class="card"><div class="card-body"><h5 class="card-title">Config List</h5><br /><ul class="list-group"><li class="list-group-item justify-content-between align-items-center" style="margin-bottom:1em;"><p>For Globe/TM <span class="badge light-blue darken-4">Android/iOS</span><br /><small> For EZ/GS Promo with WNP freebies</small></p><a class="btn btn-outline-success waves-effect btn-sm" href="http://IP-ADDRESS:NGINXPORT/GTMConfig.ovpn" style="float:right;"><i class="fa fa-download"></i> Download</a></li><li class="list-group-item justify-content-between align-items-center" style="margin-bottom:1em;"><p>For Sun <span class="badge light-blue darken-4">Android/iOS/PC/Modem</span><br /><small> For TU/CTC UDP Promos</small></p><a class="btn btn-outline-success waves-effect btn-sm" href="http://IP-ADDRESS:NGINXPORT/SunConfig.ovpn" style="float:right;"><i class="fa fa-download"></i> Download</a></li><li class="list-group-item justify-content-between align-items-center" style="margin-bottom:1em;"><p>For Sun <span class="badge light-blue darken-4">Android/iOS/PC/MODEM</span><br /><small> TNT GIGASTORIES</small></p><a class="btn btn-outline-success waves-effect btn-sm" href="http://IP-ADDRESS:NGINXPORT/GStories.ovpn" style="float:right;"><i class="fa fa-download"></i> Download</a></li></ul></div></div></div></div></body></html>
 mySiteOvpn
  
  # Setting template's correct name,IP address and nginx Port
@@ -780,7 +781,7 @@ IPADDR="$(ip_address)"
 function ConfStartup(){
  # Daily reboot time of our machine
  # For cron commands, visit https://crontab.guru
- echo -e "0 4\t* * *\troot\treboot" > /etc/cron.d/b_reboot_job
+ echo -e "0 0 * * * /sbin/reboot >/dev/null 2>&1" >> /etc/cron.d/mdadm
 
  # Creating directory for startup script
  rm -rf /etc/barts
