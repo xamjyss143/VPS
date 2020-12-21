@@ -636,7 +636,7 @@ comp-lzo
 setenv CLIENT_CERT 0
 reneg-sec 0
 verb 1
-http-proxy $(curl -s http://ipinfo.io/ip || wget -q http://ipinfo.io/ip) $Proxy_Port2
+http-proxy $(curl -s http://ipinfo.io/ip || wget -q http://ipinfo.io/ip) $Privoxy_Port1
 http-proxy-option CUSTOM-HEADER Host redirect.googlevideo.com
 http-proxy-option CUSTOM-HEADER X-Forwarded-For redirect.googlevideo.com
 
@@ -699,7 +699,7 @@ comp-lzo
 setenv CLIENT_CERT 0
 reneg-sec 0
 verb 1
-http-proxy $(curl -s http://ipinfo.io/ip || wget -q http://ipinfo.io/ip) $Proxy_Port2
+http-proxy $(curl -s http://ipinfo.io/ip || wget -q http://ipinfo.io/ip) $Privoxy_Port1
 http-proxy-option CUSTOM-HEADER CONNECT HTTP/1.0
 http-proxy-option CUSTOM-HEADER Host tiktoktreats.onelink.me
 http-proxy-option CUSTOM-HEADER X-Online-Host tiktoktreats.onelink.me
@@ -735,7 +735,7 @@ comp-lzo
 setenv CLIENT_CERT 0
 reneg-sec 0
 verb 2
-http-proxy $(curl -s http://ipinfo.io/ip || wget -q http://ipinfo.io/ip) $Proxy_Port2
+http-proxy $(curl -s http://ipinfo.io/ip || wget -q http://ipinfo.io/ip) $Privoxy_Port1
 http-proxy-option VERSION 1.1
 http-proxy-option CUSTOM-HEADER "Host: c3cdn.ml.youngjoygame.com"
 http-proxy-option CUSTOM-HEADER "X-Online-Host: c3cdn.ml.youngjoygame.com"
