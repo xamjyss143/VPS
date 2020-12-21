@@ -39,6 +39,9 @@ Dropbear_Port2='990'
 Stunnel_Port1='143' # through Dropbear
 Stunnel_Port2='144' # through OpenSSH
 
+# ZiProxy Port
+Zi_Proxy ='8899'
+
 # OpenVPN Ports
 OpenVPN_Port1='1194'
 OpenVPN_Port3='110'
@@ -583,10 +586,19 @@ mySquid
 
  sed -i "s|SquidCacheHelper|$Privoxy_Port1|g" /etc/squid/squid.conf
 
+sudo apt install ziproxy
+ cat <<myziproxy > /etc/ziproxy/ziproxy.conf
+ Port = 8899
+ UseContentLength = false
+ ImageQuality = {30,25,25,20}
+myziproxy
+
+
  # Starting Proxy server
  echo -e "Restarting proxy server.."
  systemctl restart privoxy
  systemctl restart squid
+ systemctl restart ziproxy
 }
 
 function OvpnConfigs(){
