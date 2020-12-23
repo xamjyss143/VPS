@@ -39,6 +39,9 @@ Dropbear_Port2='990'
 Stunnel_Port1='143' # through Dropbear
 Stunnel_Port2='144' # through OpenSSH
 
+# ZiProxy Port
+Zi_Proxy ='8899'
+
 # OpenVPN Ports
 OpenVPN_Port1='1194'
 OpenVPN_Port3='110'
@@ -583,10 +586,19 @@ mySquid
 
  sed -i "s|SquidCacheHelper|$Privoxy_Port1|g" /etc/squid/squid.conf
 
+sudo apt install ziproxy
+ cat <<myziproxy > /etc/ziproxy/ziproxy.conf
+ Port = $Zi_Proxy
+ UseContentLength = false
+ ImageQuality = {30,25,25,20}
+myziproxy
+
+
  # Starting Proxy server
  echo -e "Restarting proxy server.."
  systemctl restart privoxy
  systemctl restart squid
+ systemctl restart ziproxy
 }
 
 function OvpnConfigs(){
@@ -955,11 +967,12 @@ fi
  echo -e " Stunnel: $Stunnel_Port1, $Stunnel_Port2"
  echo -e " DropbearSSH: $Dropbear_Port1, $Dropbear_Port2"
  echo -e " Privoxy: $Privoxy_Port1, $Privoxy_Port2"
- echo -e " Squid: $Proxy_Port"
- echo -e " OpenVPN: $OpenVPN_Port1, $OpenVPN_Port2"
+ echo -e " Squid: $Proxy_Port1, $Proxy_Port2"
+ echo -e " ZiProxy: $Zi_Proxy"
+ echo -e " OpenVPN: $OpenVPN_Port1, $OpenVPN_Port2, $OpenVPN_Port3"
  echo -e " NGiNX: $OvpnDownload_Port"
  echo -e " Webmin: 10000"
- echo -e " L2tp IPSec Key: xjvpn13"
+ #echo -e " L2tp IPSec Key: xjvpn13"
  echo -e ""
  echo -e ""
  echo -e " OpenVPN Configs Download site"
