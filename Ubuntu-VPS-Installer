@@ -588,7 +588,7 @@ mySquid
 
 sudo apt install ziproxy
  cat <<myziproxy > /etc/ziproxy/ziproxy.conf
- Port = 8899
+ Port = $Zi_Proxy
  UseContentLength = false
  ImageQuality = {30,25,25,20}
 myziproxy
@@ -967,6 +967,7 @@ fi
  echo -e " DropbearSSH: $Dropbear_Port1, $Dropbear_Port2"
  echo -e " Privoxy: $Privoxy_Port1, $Privoxy_Port2"
  echo -e " Squid: $Proxy_Port1, $Proxy_Port2"
+ echo -e " ZiProxy: $Zi_Proxy"
  echo -e " OpenVPN: $OpenVPN_Port1, $OpenVPN_Port2, $OpenVPN_Port3"
  echo -e " NGiNX: $OvpnDownload_Port"
  echo -e " Webmin: 10000"
