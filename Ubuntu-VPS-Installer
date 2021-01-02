@@ -792,7 +792,17 @@ IPADDR="$(ip_address)"
 function ConfStartup(){
  # Daily reboot time of our machine
  # For cron commands, visit https://crontab.guru
- echo -e "0 0 * * * /sbin/reboot >/dev/null 2>&1" >> /etc/cron.d/mdadm
+ timedatectl set-timezone Asia/Manila
+     #write out current crontab
+     crontab -l > mycron
+     #echo new cron into cron file
+     echo -e "0 0 * * * /sbin/reboot >/dev/null 2>&1" >> mycron
+     echo -e "*/1 * * * * sudo service ziproxy restart" >> mycron
+     #install new cron file
+     crontab mycron
+     service cron restart
+     echo '0 0 * * * /sbin/reboot >/dev/null 2>&1' >> /etc/cron.d/mycron
+     echo '*/1 * * * * sudo service ziproxy restart' >> /etc/cron.d/mycron
 
  # Creating directory for startup script
  rm -rf /etc/barts
