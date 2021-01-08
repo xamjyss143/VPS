@@ -875,7 +875,7 @@ cd ~
 
 echo 'clear' > /etc/profile.d/barts.sh
 echo 'echo '' > /var/log/syslog' >> /etc/profile.d/barts.sh
-echo 'screenfetch -p -A Android' >> /etc/profile.d/barts.sh
+echo 'screenfetch -p -A Ubuntu' >> /etc/profile.d/barts.sh
 chmod +x /etc/profile.d/barts.sh
 }
 
