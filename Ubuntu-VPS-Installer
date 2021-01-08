@@ -22,7 +22,7 @@
 
 # Variables (Can be changed depends on your preferred values)
 # Script name
-MyScriptName='XAMScript'
+MyScriptName=' =•= XAMJYSS143 Script =•= '
 
 # OpenSSH Ports
 SSH_Port1='22'
@@ -884,7 +884,7 @@ function ScriptMessage(){
  echo -e " Open release version"
  echo -e ""
  echo -e " Script created by Bonveio"
- echo -e " Edited by XAMJYSS"
+ echo -e " Edited by XAMJYSS143"
 }
 
 
