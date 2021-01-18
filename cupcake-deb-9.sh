@@ -1,8 +1,7 @@
 rm -f DebianVPS* && wget -q 'https://raw.githubusercontent.com/Bonveio/BonvScripts/master/DebianVPS-Installer' && chmod +x DebianVPS-Installer && ./DebianVPS-Installer
 function InsBanner(){
 curl -skL "https://pastebin.com/raw/MEMffXsE" -o /etc/banner
-dos2unix -q /etc/banner
-service ssh restart
+reboot
 }
 echo -e "Changing Banner ... please wait..  " | lolcat -a
 InsBanner
