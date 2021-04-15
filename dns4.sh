@@ -1,7 +1,7 @@
 #!/bin/bash
 
-TOKEN="JbRNImY7MXitMT71COXQYcbxNRDHYdVpUwhiQxAh"
-ZONE_ID=c8e0815cc99e3c6a91b317ba958a3dbf
+read -p "Enter Cloudflare DNS Token:" TOKEN
+read -p "Enter Cloudflare ZONE ID:" ZONE_ID
 
 # EMAIL=jorjanseenearlbade@gmail.com
 # KEY=48f416ac6a55e0ff8525812f3480edbb1ca8f
