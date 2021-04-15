@@ -11,7 +11,7 @@ ZONE_ID=c8e0815cc99e3c6a91b317ba958a3dbf
 # for old API keys
  
 
-curl -s -X GET https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records?per_page=500 \
+curl -s -X GET https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records?per_page=1000 \
     -H "Authorization: Bearer ${TOKEN}" \
     -H "Content-Type: application/json" | jq .result[].id |  tr -d '"' | (
   while read id; do
