@@ -1,8 +1,10 @@
 # VPS
 <br/>
 <h1>ALL IN ONE INSTALLER</h1>
-<h3>- SSH</h2>
-<h3>- SSL</h2>
+<ul>
+<li>- SSH</li>
+<li>- SSL</li>
+ </ul>
 <h3>- OVPN</h2>
 <h3>- Websocket</h2>
 <h3>- SLowDNS</h2>
