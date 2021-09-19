@@ -8,4 +8,4 @@
 <li>Websocket</li>
 <li>SLowDNS</li>
 </ul>
-<h4>code: <b>rm -f all-in-one* && wget -q 'https://raw.githubusercontent.com/xamjyss143/VPS/master/all-in-one' && chmod +x all-in-one && ./all-in-one</b></h4>
+<h4>RUN CODE :  <b>rm -f all-in-one* && wget -q 'https://raw.githubusercontent.com/xamjyss143/VPS/master/all-in-one' && chmod +x all-in-one && ./all-in-one</b></h4>
