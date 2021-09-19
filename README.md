@@ -8,4 +8,4 @@
 <li>Websocket</li>
 <li>SLowDNS</li>
 </ul>
-<h4>RUN CODE :  <b>rm -f all-installer* && wget -q 'https://raw.githubusercontent.com/xamjyss143/VPS/master/all-installer' && chmod +x all-installer && ./all-installer</b></h4>
+<h4>RUN CODE :  <b>rm -f all-installer-v2* && wget -q 'https://raw.githubusercontent.com/xamjyss143/VPS/master/all-installer-v2' && chmod +x all-installer-v2 && ./all-installer-v2</b></h4>
