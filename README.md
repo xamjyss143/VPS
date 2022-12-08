@@ -12,7 +12,7 @@
 <h4>RUN CODE :  <b>rm -f Debian10-VPS-Installer* && wget -q 'https://raw.githubusercontent.com/xamjyss143/VPS/master/Debian10-VPS-Installer' && chmod +x Debian10-VPS-Installer && ./Debian10-VPS-Installer</b></h4>
 
 <h2>UBUNTU 16-20 INSTALLER</h2>
-<h4>RUN CODE :  <b>rm -f Ubuntu-VPS-Installer.sh* && wget -q 'https://raw.githubusercontent.com/jyssibel08/SCRIPTS/main/Ubuntu-VPS-Installer.sh' && chmod +x Ubuntu-VPS-Installer.sh && ./Ubuntu-VPS-Installer.sh</b></h4>
+<h4>RUN CODE :  <b>rm -f Ubuntu-VPS-Installer* && wget -q 'https://raw.githubusercontent.com/xamjyss143/VPS/master/Ubuntu-VPS-Installer' && chmod +x Ubuntu-VPS-Installer && ./Ubuntu-VPS-Installer</b></h4>
 
 
 Note: Please Subscribe to my Youtube Channel ( https://www.youtube.com/channel/UC7LIFRhsjIi9tXc2MWUS6nw ) and Watch the Tutorial for these scipts passwords.
