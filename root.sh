@@ -8,7 +8,7 @@ if [[ ! "$(command -v sudo)" ]]; then
  exit 1
 fi
 
-until [[ "$newsshpassh" =~ ^[a-zA-Z0-9_!]+$ ]]; do
+until [[ "$newsshpassh" =~ ^[a-zA-Z0-9_!@#$%]+$ ]]; do
 read -rp " Enter your new Root Password: " -e newsshpassh
 done
 
