@@ -4,8 +4,11 @@
 sudo apt update
 sudo apt install tinyproxy apache2-utils -y
 
-# Create password file for basic authentication
-echo "xproxy" | sudo htpasswd -i -c /etc/tinyproxy/passwd xproxy
+# Create password file for basic authentication with username and password both set to "xproxy"
+echo "xproxy:xproxy" | sudo tee /etc/tinyproxy/passwd
+
+# Clear the Tinyproxy configuration file
+sudo truncate -s 0 /etc/tinyproxy/tinyproxy.conf
 
 # Configure Tinyproxy
 sudo tee /etc/tinyproxy/tinyproxy.conf <<EOF
@@ -16,7 +19,9 @@ Port 8888
 Allow 0.0.0.0/0
 
 # Enable basic authentication
-BasicAuth xproxy $(cat /etc/tinyproxy/passwd | grep xproxy | cut -d ':' -f 2)
+AuthLevel Basic
+AuthUser xproxy
+AuthPass xproxy  # Password set to "xproxy"
 
 # Log settings
 LogFile "/var/log/tinyproxy/tinyproxy.log"
