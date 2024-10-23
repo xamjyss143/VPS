@@ -15,13 +15,8 @@ sudo tee -a /etc/privoxy/config <<EOF
 # Set the listening port
 listen-address  0.0.0.0:8118
 
-# Enable basic authentication
-enable-remote-http-access  0.0.0.0/0
-filter-incoming-requests  1
-
-# Authentication
-forward-socks5 / localhost:1080 .
-use-header  Proxy-Authorization: Basic $(echo -n "xproxy:xproxy" | base64)
+# Allow access to all hosts (comment out for restricted access)
+# enable-remote-http-access  0.0.0.0/0
 
 # Log settings
 logfile /var/log/privoxy/logfile
