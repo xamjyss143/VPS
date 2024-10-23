@@ -25,7 +25,7 @@ BasicAuth xproxy xproxy
 LogFile "/var/log/tinyproxy/tinyproxy.log"
 LogLevel Info
 
-# Create the necessary directories
+# PID file setting
 PidFile "/run/tinyproxy/tinyproxy.pid"
 EOF
 
@@ -39,5 +39,5 @@ sudo chown tinyproxy:tinyproxy /var/log/tinyproxy
 sudo systemctl restart tinyproxy
 sudo systemctl enable tinyproxy
 
-# Check the configuration
-sudo tinyproxy -c /etc/tinyproxy/tinyproxy.conf -d
+# Check the status
+sudo systemctl status tinyproxy
