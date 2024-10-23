@@ -29,11 +29,12 @@ LogLevel Info
 PidFile "/run/tinyproxy/tinyproxy.pid"
 EOF
 
-# Create the necessary directories
+# Create the necessary directories and set permissions
 sudo mkdir -p /run/tinyproxy
 sudo mkdir -p /var/log/tinyproxy
-sudo chown tinyproxy:tinyproxy /run/tinyproxy
-sudo chown tinyproxy:tinyproxy /var/log/tinyproxy
+sudo chown -R tinyproxy:tinyproxy /etc/tinyproxy
+sudo chown -R tinyproxy:tinyproxy /run/tinyproxy
+sudo chown -R tinyproxy:tinyproxy /var/log/tinyproxy
 
 # Restart and enable tinyproxy service
 sudo systemctl restart tinyproxy
