@@ -1,5 +1,5 @@
 #!/bin/bash
-
+#updated
 # Update package list and install Tinyproxy
 sudo apt update
 sudo apt install tinyproxy apache2-utils -y
