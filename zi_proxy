@@ -25,11 +25,16 @@ Port = 6969
 ## Local address to listen for proxy connections
 Address = "0.0.0.0"
 
+# OnlyFrom = "127.0.0.1"
+
 EOL
 
 # Start and enable Ziproxy service
 sudo systemctl start ziproxy
 sudo systemctl enable ziproxy
+
+
+sudo systemctl restart ziproxy
 
 # Check if UFW is installed; install it if not
 if ! command -v ufw &> /dev/null; then
