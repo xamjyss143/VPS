@@ -50,4 +50,4 @@ sudo ufw allow 6969/tcp
 sudo systemctl status ziproxy
 
 # Print success message
-echo "Ziproxy installation and configuration completed. It is running on port 6969, binding to 127.0.0.1."
+echo "Ziproxy installation and configuration completed. It is running on port 6969, binding to 0.0.0.0"
