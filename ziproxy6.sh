@@ -3,16 +3,17 @@
 # Update system package list
 sudo apt update && sudo apt upgrade -y
 
+# Remove existing Ziproxy installation
+sudo apt remove --purge -y ziproxy
+
+# Remove existing configuration files
+sudo rm -f /etc/ziproxy/ziproxy.conf
+
 # Install Ziproxy
 sudo apt install -y ziproxy
 
 # Define configuration file path
 CONFIG_FILE="/etc/ziproxy/ziproxy.conf"
-
-# Check if the configuration directory exists, if not create it
-if [ ! -d "/etc/ziproxy" ]; then
-    sudo mkdir -p "/etc/ziproxy"
-fi
 
 # Check if the configuration file exists, if not create it
 if [ ! -f "$CONFIG_FILE" ]; then
