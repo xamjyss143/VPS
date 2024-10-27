@@ -23,10 +23,8 @@ cat <<EOL | sudo tee "$CONFIG_FILE"
 Port = 6969
 
 ## Local address to listen for proxy connections
-Address = "127.0.0.1"
+Address = "0.0.0.0"
 
-## Accepts connections only from that address.
-OnlyFrom = "127.0.0.1"
 EOL
 
 # Start and enable Ziproxy service
