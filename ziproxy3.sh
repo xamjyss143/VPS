@@ -6,11 +6,17 @@ sudo apt update && sudo apt upgrade -y
 # Install Ziproxy
 sudo apt install -y ziproxy
 
+# Check if the configuration directory exists, if not create it
+CONFIG_DIR="/etc/ziproxy"
+CONFIG_FILE="$CONFIG_DIR/ziproxy.conf"
+if [ ! -d "$CONFIG_DIR" ]; then
+    sudo mkdir -p "$CONFIG_DIR"
+fi
+
 # Check if the configuration file exists, if not create it
-CONFIG_FILE="/etc/ziproxy.conf"
 if [ ! -f "$CONFIG_FILE" ]; then
-    sudo cp /usr/share/doc/ziproxy/ziproxy.conf.gz /etc/ziproxy.conf.gz
-    sudo gunzip /etc/ziproxy.conf.gz
+    sudo cp /usr/share/doc/ziproxy/ziproxy.conf.gz /etc/ziproxy/ziproxy.conf.gz
+    sudo gunzip /etc/ziproxy/ziproxy.conf.gz
 fi
 
 # Set port to 6969 in the configuration file
