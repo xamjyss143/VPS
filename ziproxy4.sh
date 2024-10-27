@@ -6,11 +6,12 @@ sudo apt update && sudo apt upgrade -y
 # Install Ziproxy
 sudo apt install -y ziproxy
 
+# Define configuration file path
+CONFIG_FILE="/etc/ziproxy/ziproxy.conf"
+
 # Check if the configuration directory exists, if not create it
-CONFIG_DIR="/etc/ziproxy"
-CONFIG_FILE="$CONFIG_DIR/ziproxy.conf"
-if [ ! -d "$CONFIG_DIR" ]; then
-    sudo mkdir -p "$CONFIG_DIR"
+if [ ! -d "/etc/ziproxy" ]; then
+    sudo mkdir -p "/etc/ziproxy"
 fi
 
 # Check if the configuration file exists, if not create it
@@ -19,8 +20,9 @@ if [ ! -f "$CONFIG_FILE" ]; then
     sudo gunzip /etc/ziproxy/ziproxy.conf.gz
 fi
 
-# Set port to 6969 in the configuration file
-sudo sed -i 's/^port .*/port 6969/' "$CONFIG_FILE"
+# Set port to 6969 and address to 127.0.0.1 in the configuration file
+sudo sed -i 's/^#\?Port = .*/Port = 6969/' "$CONFIG_FILE"
+sudo sed -i 's/^#\?Address = .*/Address = "127.0.0.1"/' "$CONFIG_FILE"
 
 # Start and enable Ziproxy service
 sudo systemctl start ziproxy
@@ -38,4 +40,4 @@ fi
 sudo systemctl status ziproxy
 
 # Print success message
-echo "Ziproxy installation and configuration completed. It is running on port 6969."
+echo "Ziproxy installation and configuration completed. It is running on port 6969, binding to 127.0.0.1."
