@@ -17,13 +17,17 @@ if [ -f "$CONFIG_FILE" ]; then
     sudo rm -f "$CONFIG_FILE"
 fi
 
-# Create a new configuration file
-sudo cp /usr/share/doc/ziproxy/ziproxy.conf.gz /etc/ziproxy/ziproxy.conf.gz
-sudo gunzip /etc/ziproxy/ziproxy.conf.gz
+# Create a new configuration file from scratch
+cat <<EOL | sudo tee "$CONFIG_FILE"
+## Port to listen for proxy connections
+Port = 6969
 
-# Set port to 6969 and address to 127.0.0.1 in the configuration file
-sudo sed -i 's/^#\?Port = .*/Port = 6969/' "$CONFIG_FILE"
-sudo sed -i 's/^#\?Address = .*/Address = "127.0.0.1"/' "$CONFIG_FILE"
+## Local address to listen for proxy connections
+Address = "127.0.0.1"
+
+## Accepts connections only from that address.
+OnlyFrom = "127.0.0.1"
+EOL
 
 # Start and enable Ziproxy service
 sudo systemctl start ziproxy
