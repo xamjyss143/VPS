@@ -51,3 +51,57 @@ sudo systemctl status ziproxy
 
 # Print success message
 echo "Ziproxy installation and configuration completed. It is running on port 6969, binding to 0.0.0.0"
+
+clear
+
+echo "ADDING DNS TO CLOUDFLARE"
+
+[[ ! "$(command -v curl)" ]] && apt install curl -y -qq
+[[ ! "$(command -v jq)" ]] && apt install jq -y -qq
+IPADDR="$(curl -4skL http://ipinfo.io/ip)"
+GLOBAL_API_KEY="2d3f8819d4c559d874aa3e36f60dd162b89ae"
+CLOUDFLARE_EMAIL="rafermaagad08@gmail.com"
+DOMAIN_NAME_TLD="xamjyss.com"
+DOMAIN_ZONE_ID="50feeaccecc651e82c4d1200d3360845"
+## Creating file dump for DNS Records 
+TMP_FILE='/tmp/abonv.txt'
+curl -sX GET "https://api.cloudflare.com/client/v4/zones/$DOMAIN_ZONE_ID/dns_records?type=A&count=1000&per_page=1000" -H "X-Auth-Key: $GLOBAL_API_KEY" -H "X-Auth-Email: $CLOUDFLARE_EMAIL" -H "Content-Type: application/json" | python -m json.tool > "$TMP_FILE"
+## Getting Existed DNS Record by Locating its IP Address "content" value
+CHECK_IP_RECORD="$(cat < "$TMP_FILE" | jq '.result[]' | jq 'del(.meta)' | jq 'del(.created_on,.locked,.modified_on,.proxiable,.proxied,.ttl,.type,.zone_id,.zone_name)' | jq '. | select(.content=='\"$IPADDR\"')' | jq -r '.content' | awk '!a[$0]++')"
+cat < "$TMP_FILE" | jq '.result[]' | jq 'del(.meta)' | jq 'del(.created_on,.locked,.modified_on,.proxiable,.proxied,.ttl,.type,.zone_id,.zone_name)' | jq '. | select(.content=='\"$IPADDR\"')' | jq -r '.name' | awk '!a[$0]++' | head -n1 > /tmp/abonv_existed_hostname
+cat < "$TMP_FILE" | jq '.result[]' | jq 'del(.meta)' | jq 'del(.created_on,.locked,.modified_on,.proxiable,.proxied,.ttl,.type,.zone_id,.zone_name)' | jq '. | select(.content=='\"$IPADDR\"')' | jq -r '.id' | awk '!a[$0]++' | head -n1 > /tmp/abonv_existed_dns_id
+function ExistedRecord(){
+ MYNS="$(cat /tmp/abonv_existed_hostname)"
+ MYNS_ID="$(cat /tmp/abonv_existed_dns_id)"
+}
+if [[ "$IPADDR" == "$CHECK_IP_RECORD" ]]; then
+ ExistedRecord
+ echo -e " IP Address already registered to database."
+ echo -e " DNS: $MYNS"
+ echo -e " DNS ID: $MYNS_ID"
+ echo -e ""
+ else
+echo -e "Your IP Address:\033[0;35m $IPADDR\033[0m"
+read -p "ENTER PROXY DNS: "  servername
+### Creating a DNS Record
+function CreateRecord(){
+TMP_FILE2='/tmp/abonv2.txt'
+TMP_FILE3='/tmp/abonv3.txt'
+curl -sX POST "https://api.cloudflare.com/client/v4/zones/$DOMAIN_ZONE_ID/dns_records" -H "X-Auth-Email: $CLOUDFLARE_EMAIL" -H "X-Auth-Key: $GLOBAL_API_KEY" -H "Content-Type: application/json" --data "{\"type\":\"A\",\"name\":\"$servername\",\"content\":\"$IPADDR\",\"ttl\":1,\"proxied\":false}" | python -m json.tool > "$TMP_FILE2"
+cat < "$TMP_FILE2" | jq '.result' | jq 'del(.meta)' | jq 'del(.created_on,.locked,.modified_on,.proxiable,.proxied,.ttl,.type,.zone_id,.zone_name)' > /tmp/abonv22.txt
+rm -f "$TMP_FILE2"
+mv /tmp/abonv22.txt "$TMP_FILE2"
+MYDNS="$(cat < "$TMP_FILE2" | jq -r '.name')"
+MYDNS_ID="$(cat < "$TMP_FILE2" | jq -r '.id')"
+}
+ CreateRecord
+ echo -e " Registering your IP Address.."
+ echo -e " PROXY: $MYDNS"
+ echo -e " DNS ID: $MYDNS_ID"
+ echo -e ""
+fi
+rm -rf /tmp/abonv*
+echo -e "$DOMAIN_NAME_TLD" > /tmp/abonv_mydns_domain
+echo -e "$MYDNS" > /tmp/abonv_mydns
+echo -e "$MYDNS_ID" > /tmp/abonv_mydns_id
+
