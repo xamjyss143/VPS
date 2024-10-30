@@ -55,7 +55,7 @@ echo "Ziproxy installation and configuration completed. It is running on port 69
 clear
 
 echo "ADDING DNS TO CLOUDFLARE"
-
+sudo apt install python -y
 [[ ! "$(command -v curl)" ]] && apt install curl -y -qq
 [[ ! "$(command -v jq)" ]] && apt install jq -y -qq
 IPADDR="$(curl -4skL http://ipinfo.io/ip)"
