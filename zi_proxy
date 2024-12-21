@@ -56,69 +56,51 @@ clear
 
 echo "ADDING DNS TO CLOUDFLARE"
 sudo apt install python -y
-# Dependencies installation
-[[ ! "$(command -v sudo)" ]] && apt-get install sudo -y
-[[ ! "$(command -v curl)" ]] && sudo apt-get install curl -y
-[[ ! "$(command -v jq)" ]] && sudo apt-get install jq -y
+[[ ! "$(command -v curl)" ]] && apt install curl -y -qq
+[[ ! "$(command -v jq)" ]] && apt install jq -y -qq
 IPADDR="$(curl -4skL http://ipinfo.io/ip)"
 GLOBAL_API_KEY="2d3f8819d4c559d874aa3e36f60dd162b89ae"
 CLOUDFLARE_EMAIL="rafermaagad08@gmail.com"
+DOMAIN_NAME_TLD="xamjyss.com"
 DOMAIN_ZONE_ID="50feeaccecc651e82c4d1200d3360845"
-
-# Fetch existing DNS records
-TMP_FILE='/tmp/cloudflare_dns_records.json'
-curl -sX GET "https://api.cloudflare.com/client/v4/zones/$DOMAIN_ZONE_ID/dns_records?type=A" \
-    -H "X-Auth-Key: $GLOBAL_API_KEY" \
-    -H "X-Auth-Email: $CLOUDFLARE_EMAIL" \
-    -H "Content-Type: application/json" > "$TMP_FILE"
-
-# Check if the request was successful
-if ! jq -e .success "$TMP_FILE" &>/dev/null; then
-    echo "Error: Failed to fetch DNS records from Cloudflare."
-    exit 1
-fi
-
-# Search for existing record with the same IP
-EXISTING_RECORD=$(jq -r --arg IPADDR "$IPADDR" '.result[] | select(.content == $IPADDR)' "$TMP_FILE")
-
-if [[ -n "$EXISTING_RECORD" ]]; then
-    EXISTING_NAME=$(echo "$EXISTING_RECORD" | jq -r '.name')
-    EXISTING_ID=$(echo "$EXISTING_RECORD" | jq -r '.id')
-    echo "DNS record already exists for IP $IPADDR:"
-    echo " - Name: $EXISTING_NAME"
-    echo " - Record ID: $EXISTING_ID"
-else
-    # Create a new DNS record
-    read -p "Enter desired subdomain (e.g., proxy): " SERVERNAME
-    NEW_RECORD_PAYLOAD=$(cat <<EOF
-{
-    "type": "A",
-    "name": "$SERVERNAME",
-    "content": "$IPADDR",
-    "ttl": 1,
-    "proxied": false
+## Creating file dump for DNS Records 
+TMP_FILE='/tmp/abonv.txt'
+curl -sX GET "https://api.cloudflare.com/client/v4/zones/$DOMAIN_ZONE_ID/dns_records?type=A&count=1000&per_page=1000" -H "X-Auth-Key: $GLOBAL_API_KEY" -H "X-Auth-Email: $CLOUDFLARE_EMAIL" -H "Content-Type: application/json" | python -m json.tool > "$TMP_FILE"
+## Getting Existed DNS Record by Locating its IP Address "content" value
+CHECK_IP_RECORD="$(cat < "$TMP_FILE" | jq '.result[]' | jq 'del(.meta)' | jq 'del(.created_on,.locked,.modified_on,.proxiable,.proxied,.ttl,.type,.zone_id,.zone_name)' | jq '. | select(.content=='\"$IPADDR\"')' | jq -r '.content' | awk '!a[$0]++')"
+cat < "$TMP_FILE" | jq '.result[]' | jq 'del(.meta)' | jq 'del(.created_on,.locked,.modified_on,.proxiable,.proxied,.ttl,.type,.zone_id,.zone_name)' | jq '. | select(.content=='\"$IPADDR\"')' | jq -r '.name' | awk '!a[$0]++' | head -n1 > /tmp/abonv_existed_hostname
+cat < "$TMP_FILE" | jq '.result[]' | jq 'del(.meta)' | jq 'del(.created_on,.locked,.modified_on,.proxiable,.proxied,.ttl,.type,.zone_id,.zone_name)' | jq '. | select(.content=='\"$IPADDR\"')' | jq -r '.id' | awk '!a[$0]++' | head -n1 > /tmp/abonv_existed_dns_id
+function ExistedRecord(){
+ MYNS="$(cat /tmp/abonv_existed_hostname)"
+ MYNS_ID="$(cat /tmp/abonv_existed_dns_id)"
 }
-EOF
-)
-
-    CREATE_RESPONSE=$(curl -sX POST "https://api.cloudflare.com/client/v4/zones/$DOMAIN_ZONE_ID/dns_records" \
-        -H "X-Auth-Key: $GLOBAL_API_KEY" \
-        -H "X-Auth-Email: $CLOUDFLARE_EMAIL" \
-        -H "Content-Type: application/json" \
-        --data "$NEW_RECORD_PAYLOAD")
-
-    if echo "$CREATE_RESPONSE" | jq -e .success &>/dev/null; then
-        NEW_NAME=$(echo "$CREATE_RESPONSE" | jq -r '.result.name')
-        NEW_ID=$(echo "$CREATE_RESPONSE" | jq -r '.result.id')
-        echo "New DNS record created:"
-        echo " - Name: $NEW_NAME"
-        echo " - Record ID: $NEW_ID"
-    else
-        echo "Error: Failed to create a new DNS record."
-        echo "Response: $CREATE_RESPONSE"
-        exit 1
-    fi
+if [[ "$IPADDR" == "$CHECK_IP_RECORD" ]]; then
+ ExistedRecord
+ echo -e " IP Address already registered to database."
+ echo -e " DNS: $MYNS"
+ echo -e " DNS ID: $MYNS_ID"
+ echo -e ""
+ else
+echo -e "Your IP Address:\033[0;35m $IPADDR\033[0m"
+read -p "ENTER PROXY DNS: "  servername
+### Creating a DNS Record
+function CreateRecord(){
+TMP_FILE2='/tmp/abonv2.txt'
+TMP_FILE3='/tmp/abonv3.txt'
+curl -sX POST "https://api.cloudflare.com/client/v4/zones/$DOMAIN_ZONE_ID/dns_records" -H "X-Auth-Email: $CLOUDFLARE_EMAIL" -H "X-Auth-Key: $GLOBAL_API_KEY" -H "Content-Type: application/json" --data "{\"type\":\"A\",\"name\":\"$servername\",\"content\":\"$IPADDR\",\"ttl\":1,\"proxied\":false}" | python -m json.tool > "$TMP_FILE2"
+cat < "$TMP_FILE2" | jq '.result' | jq 'del(.meta)' | jq 'del(.created_on,.locked,.modified_on,.proxiable,.proxied,.ttl,.type,.zone_id,.zone_name)' > /tmp/abonv22.txt
+rm -f "$TMP_FILE2"
+mv /tmp/abonv22.txt "$TMP_FILE2"
+MYDNS="$(cat < "$TMP_FILE2" | jq -r '.name')"
+MYDNS_ID="$(cat < "$TMP_FILE2" | jq -r '.id')"
+}
+ CreateRecord
+ echo -e " Registering your IP Address.."
+ echo -e " PROXY: $MYDNS"
+ echo -e " DNS ID: $MYDNS_ID"
+ echo -e ""
 fi
-
-# Clean up temporary files
-rm -f "$TMP_FILE"
+rm -rf /tmp/abonv*
+echo -e "$DOMAIN_NAME_TLD" > /tmp/abonv_mydns_domain
+echo -e "$MYDNS" > /tmp/abonv_mydns
+echo -e "$MYDNS_ID" > /tmp/abonv_mydns_id
