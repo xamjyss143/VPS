@@ -16,6 +16,7 @@ RECORDS=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/
     -H "Content-Type: application/json")
 
 # Process each record
+FIRST=1
 echo "$RECORDS" | jq -c '.result[] | {id: .id, name: .name}' | while read record; do
     ID=$(echo "$record" | jq -r '.id')
     NAME=$(echo "$record" | jq -r '.name')
@@ -25,5 +26,12 @@ echo "$RECORDS" | jq -c '.result[] | {id: .id, name: .name}' | while read record
       -H "Authorization: Bearer ${TOKEN}" \
       -H "Content-Type: application/json" > /dev/null
 
-    echo "$NAME -> DELETED"
+    # Print results on the same line
+    if [[ $FIRST -eq 1 ]]; then
+        printf "%s -> DELETED" "$NAME"
+        FIRST=0
+    else
+        printf ", %s -> DELETED" "$NAME"
+    fi
 done
+printf "\n"  # Add a final newline after all deletions
