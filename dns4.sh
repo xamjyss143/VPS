@@ -1,22 +1,29 @@
 #!/bin/bash
 
-read -p "Enter Cloudflare DNS Token:" TOKEN
-read -p "Enter Cloudflare ZONE ID:" ZONE_ID
+# Ensure jq is installed
+if ! command -v jq &> /dev/null; then
+    echo "Installing jq..."
+    sudo apt update && sudo apt install -y jq
+fi
 
-# EMAIL=jorjanseenearlbade@gmail.com
-# KEY=48f416ac6a55e0ff8525812f3480edbb1ca8f
-# Replace with 
-#     -H "X-Auth-Email: ${EMAIL}" \
-#     -H "X-Auth-Key: ${KEY}" \
-# for old API keys
- 
+# Read user input for Cloudflare credentials
+read -p "Enter Cloudflare DNS Token: " TOKEN
+read -p "Enter Cloudflare ZONE ID: " ZONE_ID
 
-curl -s -X GET https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records?per_page=1000 \
+# Fetch DNS records
+RECORDS=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records?per_page=1000" \
     -H "Authorization: Bearer ${TOKEN}" \
-    -H "Content-Type: application/json" | jq .result[].id |  tr -d '"' | (
-  while read id; do
-    curl -s -X DELETE https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records/${id} \
+    -H "Content-Type: application/json")
+
+# Process each record
+echo "$RECORDS" | jq -c '.result[] | {id: .id, name: .name}' | while read record; do
+    ID=$(echo "$record" | jq -r '.id')
+    NAME=$(echo "$record" | jq -r '.name')
+
+    # Delete the DNS record
+    curl -s -X DELETE "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records/${ID}" \
       -H "Authorization: Bearer ${TOKEN}" \
-      -H "Content-Type: application/json"
-  done
-  )
+      -H "Content-Type: application/json" > /dev/null
+
+    echo "$NAME -> DELETED"
+done
