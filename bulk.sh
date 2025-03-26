@@ -14,6 +14,11 @@ fi
 
 INPUT_FILE="$1"
 
+# Color definitions
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
 # Loop through each line in the input file
 while IFS= read -r line || [[ -n "$line" ]]; do
   # Parse IP, Port, Username, and Old Password
@@ -36,8 +41,8 @@ while IFS= read -r line || [[ -n "$line" ]]; do
 EOF
 
   if [[ $? -eq 0 ]]; then
-    echo -e "Success!\n\nIP: $IP\nUser: root\nPassword: $NEW_PASSWORD\nPort: $PORT\n"
+    echo -e "${GREEN}SUCCESS: [IP: $IP], [USER: root], [PASSWORD: $NEW_PASSWORD], [PORT: $PORT]${NC}"
   else
-    echo "Error changing password for $IP"
+    echo -e "${RED}ERROR: [REASON: Password change failed for $IP]${NC}"
   fi
 done < "$INPUT_FILE"
