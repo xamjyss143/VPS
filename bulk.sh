@@ -24,9 +24,6 @@ while IFS= read -r line || [[ -n "$line" ]]; do
   USER=$(echo "$USER_PASS" | cut -d':' -f1)
   OLD_PASS=$(echo "$USER_PASS" | cut -d':' -f2)
 
-  echo "Changing root password for $IP..."
-
-  # Change root password using SSH and expect
   /usr/bin/expect <<EOF
     spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP "echo -e \"$NEW_PASSWORD\\n$NEW_PASSWORD\\n\" | passwd root"
     expect "*password:"
@@ -34,7 +31,9 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     expect eof
 EOF
 
-  echo "Password change attempted for $IP."
+  if [[ $? -eq 0 ]]; then
+    echo -e "Success!\n\nIP: $IP\nUser: root\nPassword: $NEW_PASSWORD\nPort: $PORT\n"
+  else
+    echo "Error changing password for $IP"
+  fi
 done < "$INPUT_FILE"
-
-echo "Bulk password change process completed."
