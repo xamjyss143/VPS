@@ -24,10 +24,14 @@ while IFS= read -r line || [[ -n "$line" ]]; do
   USER=$(echo "$USER_PASS" | cut -d':' -f1)
   OLD_PASS=$(echo "$USER_PASS" | cut -d':' -f2)
 
+  # Change root password using SSH and expect
   /usr/bin/expect <<EOF &> /dev/null
     spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP "echo -e \"$NEW_PASSWORD\\n$NEW_PASSWORD\\n\" | passwd root"
-    expect "*password:"
-    send "$OLD_PASS\r"
+    expect {
+        "password:" { send "$OLD_PASS\r" }
+        "New password:" { send "$NEW_PASSWORD\r" }
+        "Retype new password:" { send "$NEW_PASSWORD\r" }
+    }
     expect eof
 EOF
 
