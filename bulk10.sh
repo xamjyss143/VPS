@@ -38,18 +38,30 @@ while IFS= read -r line || [[ -n "$line" ]]; do
   USER=$(echo "$USER_PASS" | cut -d':' -f1)
   OLD_PASS=$(echo "$USER_PASS" | cut -d':' -f2)
 
-  # Step 1: Enable root login if user is not root
+  # Step 1: Enable root login and set root password immediately after
   if [[ "$USER" != "root" ]]; then
     /usr/bin/expect <<EOF &> /dev/null
-    spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP "echo '$OLD_PASS' | sudo -S sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config && echo '$OLD_PASS' | sudo -S systemctl restart sshd"
+    spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP "echo '$OLD_PASS' | sudo -S sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config && echo '$OLD_PASS' | sudo -S sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config && echo '$OLD_PASS' | sudo -S systemctl restart sshd && echo -e '$NEW_PASSWORD\n$NEW_PASSWORD' | sudo -S passwd root"
     expect "*password:"
     send "$OLD_PASS\r"
     expect eof
 EOF
     USER="root"
+    
   fi
-
-  # Step 2: Change root password (retry up to 3 times)
+  
+  # Step 2: Change SSH Port to 22 if not already 22
+  if [[ "$PORT" != "22" ]]; then
+    /usr/bin/expect <<EOF &> /dev/null
+    spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP "echo '$OLD_PASS' | sudo -S sed -i 's/^Port .*/Port 22/' /etc/ssh/sshd_config && echo '$OLD_PASS' | sudo -S systemctl restart sshd"
+    expect "*password:"
+    send "$OLD_PASS\r"
+    expect eof
+EOF
+    PORT="22"
+  fi
+  
+  # Step 3: Verify root login by changing the password again (retry up to 3 times)
   ATTEMPTS=0
   SUCCESS=false
   while [[ $ATTEMPTS -lt 3 ]]; do
@@ -77,17 +89,6 @@ EOF
     echo "$COUNT => ERROR: [REASON: Password change failed for $IP after 3 attempts]" >> "$ERROR_FILE"
     ((COUNT++))
     continue
-  fi
-
-  # Step 3: Change SSH port to 22 if not already 22 (as root)
-  if [[ "$PORT" != "22" ]]; then
-    /usr/bin/expect <<EOF &> /dev/null
-    spawn ssh -o StrictHostKeyChecking=no -p $PORT root@$IP "sed -i 's/^Port .*/Port 22/' /etc/ssh/sshd_config && systemctl restart sshd"
-    expect "*password:"
-    send "$NEW_PASSWORD\r"
-    expect eof
-EOF
-    PORT="22"
   fi
 
   echo -e "${GREEN}$COUNT => SUCCESS: [IP: $IP], [USER: root], [PASSWORD: $NEW_PASSWORD], [PORT: 22]${NC}"
