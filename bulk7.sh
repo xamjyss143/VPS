@@ -52,7 +52,7 @@ EOF
   # Change port to 22 if not 22
   if [[ "$PORT" != "22" ]]; then
     /usr/bin/expect <<EOF &> /dev/null
-      spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP "sudo sed -i '/^Port $PORT/a Port 22' /etc/ssh/sshd_config && sudo systemctl restart sshd"
+      spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP "sudo sed -i 's/^Port .*/Port 22/' /etc/ssh/sshd_config && sudo systemctl restart sshd"
       expect "*password:"
       send "$OLD_PASS\r"
       expect eof
