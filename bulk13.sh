@@ -1,6 +1,5 @@
 #!/bin/bash
-# Bulk Change VPS Root Passwords with Counter and Retry Logic
-# Author: ChatGPT
+# Bulk Change VPS Root Passwords with Fix for "passwd: Authentication token manipulation error"
 
 # Define the new root password
 NEW_PASSWORD="xAm12345"
@@ -15,11 +14,6 @@ fi
 INPUT_FILE="$1"
 SUCCESS_FILE="${INPUT_FILE%.txt}-success.txt"
 ERROR_FILE="${INPUT_FILE%.txt}-error.txt"
-
-# Color definitions
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-NC='\033[0m' # No Color
 
 # Initialize counter
 COUNT=1
@@ -53,16 +47,16 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     expect eof
 EOF
 
-    # Step 1.1: Change root password after enabling root login
+    # Step 1.1: Unlock root and change password
     /usr/bin/expect <<EOF
     spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP
     expect {
         "*password:" { send "$OLD_PASS\r"; exp_continue }
         "*\$*" {
-            send "echo '$OLD_PASS' | sudo -S passwd root\r"
+            send "echo '$OLD_PASS' | sudo -S passwd -u root\r"
+            send "echo '$OLD_PASS' | sudo -S chmod 644 /etc/passwd /etc/shadow\r"
+            send "echo '$OLD_PASS' | sudo -S su -c \"echo -e '$NEW_PASSWORD\n$NEW_PASSWORD' | passwd root\"\r"
         }
-        "*New password:*" { send "$NEW_PASSWORD\r"; exp_continue }
-        "*Retype new password:*" { send "$NEW_PASSWORD\r" }
     }
     expect eof
 EOF
@@ -83,39 +77,22 @@ EOF
     PORT="22"
   fi
 
-  # Step 3: Verify root login with new password (retry up to 3 times)
-  ATTEMPTS=0
-  SUCCESS=false
-  while [[ $ATTEMPTS -lt 3 ]]; do
-    /usr/bin/expect <<EOF
-    spawn ssh -o StrictHostKeyChecking=no -p $PORT root@$IP "echo 'Root login confirmed'"
-    expect {
-        "*password:" { send "$NEW_PASSWORD\r" }
-        "*Root login confirmed*" { exit 0 }
-    }
-    expect eof
+  # Step 3: Verify root login with new password
+  /usr/bin/expect <<EOF
+  spawn ssh -o StrictHostKeyChecking=no -p $PORT root@$IP "echo 'Root login confirmed'"
+  expect {
+      "*password:" { send "$NEW_PASSWORD\r" }
+      "*Root login confirmed*" { exit 0 }
+  }
+  expect eof
 EOF
 
-    if [[ $? -eq 0 ]]; then
-      SUCCESS=true
-      break
-    fi
-    ((ATTEMPTS++))
-    sleep 2 # Wait before retrying
-  done
-
-  # If password change failed, move to next VPS
-  if [[ "$SUCCESS" == false ]]; then
-    echo -e "${RED}$COUNT => ERROR: [REASON: Root login failed for $IP after 3 attempts]${NC}"
-    echo "$COUNT => ERROR: [REASON: Root login failed for $IP after 3 attempts]" >> "$ERROR_FILE"
-    ((COUNT++))
-    continue
+  if [[ $? -eq 0 ]]; then
+    echo "$COUNT => SUCCESS: [IP: $IP], [USER: root], [PASSWORD: $NEW_PASSWORD], [PORT: 22]" >> "$SUCCESS_FILE"
+  else
+    echo "$COUNT => ERROR: [REASON: Root login failed for $IP]" >> "$ERROR_FILE"
   fi
 
-  echo -e "${GREEN}$COUNT => SUCCESS: [IP: $IP], [USER: root], [PASSWORD: $NEW_PASSWORD], [PORT: 22]${NC}"
-  echo "$COUNT => SUCCESS: [IP: $IP], [USER: root], [PASSWORD: $NEW_PASSWORD], [PORT: 22]" >> "$SUCCESS_FILE"
-
-  # Increment counter
   ((COUNT++))
 
 done < "$INPUT_FILE"
