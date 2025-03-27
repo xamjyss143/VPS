@@ -38,27 +38,41 @@ while IFS= read -r line || [[ -n "$line" ]]; do
   USER=$(echo "$USER_PASS" | cut -d':' -f1)
   OLD_PASS=$(echo "$USER_PASS" | cut -d':' -f2)
 
-  # Step 1: Enable root login and change root password
+  # Step 1: Enable root login and force password authentication
   if [[ "$USER" != "root" ]]; then
-    /usr/bin/expect <<EOF &> /dev/null
+    /usr/bin/expect <<EOF
     spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP
     expect {
         "*password:" { send "$OLD_PASS\r"; exp_continue }
         "*\$*" {
             send "echo '$OLD_PASS' | sudo -S sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config && "
             send "echo '$OLD_PASS' | sudo -S sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config && "
-            send "echo '$OLD_PASS' | sudo -S systemctl restart sshd && "
-            send "echo -e '$NEW_PASSWORD\n$NEW_PASSWORD' | sudo -S passwd root\r"
+            send "echo '$OLD_PASS' | sudo -S systemctl restart sshd\r"
         }
     }
     expect eof
 EOF
+
+    # Step 1.1: Change root password after enabling root login
+    /usr/bin/expect <<EOF
+    spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP
+    expect {
+        "*password:" { send "$OLD_PASS\r"; exp_continue }
+        "*\$*" {
+            send "echo '$OLD_PASS' | sudo -S passwd root\r"
+        }
+        "*New password:*" { send "$NEW_PASSWORD\r"; exp_continue }
+        "*Retype new password:*" { send "$NEW_PASSWORD\r" }
+    }
+    expect eof
+EOF
+
     USER="root"
   fi
 
   # Step 2: Change SSH port to 22 if not already 22
   if [[ "$PORT" != "22" ]]; then
-    /usr/bin/expect <<EOF &> /dev/null
+    /usr/bin/expect <<EOF
     spawn ssh -o StrictHostKeyChecking=no -p $PORT root@$IP
     expect {
         "*password:" { send "$NEW_PASSWORD\r"; exp_continue }
@@ -69,20 +83,19 @@ EOF
     PORT="22"
   fi
 
-  # Step 3: Verify root password change (retry up to 3 times)
+  # Step 3: Verify root login with new password (retry up to 3 times)
   ATTEMPTS=0
   SUCCESS=false
   while [[ $ATTEMPTS -lt 3 ]]; do
-    /usr/bin/expect <<EOF &> /dev/null
-    spawn ssh -o StrictHostKeyChecking=no -p $PORT root@$IP "echo -e \"$NEW_PASSWORD\\n$NEW_PASSWORD\\n\" | passwd root"
+    /usr/bin/expect <<EOF
+    spawn ssh -o StrictHostKeyChecking=no -p $PORT root@$IP "echo 'Root login confirmed'"
     expect {
         "*password:" { send "$NEW_PASSWORD\r" }
-        "*New password:*" { send "$NEW_PASSWORD\r" }
-        "*Retype new password:*" { send "$NEW_PASSWORD\r" }
+        "*Root login confirmed*" { exit 0 }
     }
     expect eof
 EOF
-    
+
     if [[ $? -eq 0 ]]; then
       SUCCESS=true
       break
@@ -93,8 +106,8 @@ EOF
 
   # If password change failed, move to next VPS
   if [[ "$SUCCESS" == false ]]; then
-    echo -e "${RED}$COUNT => ERROR: [REASON: Password change failed for $IP after 3 attempts]${NC}"
-    echo "$COUNT => ERROR: [REASON: Password change failed for $IP after 3 attempts]" >> "$ERROR_FILE"
+    echo -e "${RED}$COUNT => ERROR: [REASON: Root login failed for $IP after 3 attempts]${NC}"
+    echo "$COUNT => ERROR: [REASON: Root login failed for $IP after 3 attempts]" >> "$ERROR_FILE"
     ((COUNT++))
     continue
   fi
