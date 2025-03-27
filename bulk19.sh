@@ -21,7 +21,7 @@ COUNT=1
 > "$SUCCESS_FILE"
 > "$ERROR_FILE"
 
-# Function 1: Enable root login, password authentication, and set root password
+# Function 1: Enable root login and password authentication
 enable_root_login() {
   local IP=$1
   local PORT=$2
@@ -36,8 +36,6 @@ enable_root_login() {
           send "echo '$OLD_PASS' | sudo -S sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config\r"
           send "echo '$OLD_PASS' | sudo -S sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config\r"
           send "echo '$OLD_PASS' | sudo -S systemctl restart sshd\r"
-          send "echo '$OLD_PASS' | sudo -S passwd -u root\r"
-          send "echo '$OLD_PASS' | sudo -S su -c \"echo -e '$NEW_PASSWORD\n$NEW_PASSWORD' | passwd root\"\r"
           send "exit\r"
       }
   }
@@ -60,15 +58,16 @@ change_ssh_port() {
 EOF
 }
 
-# Function 3: Ensure root password is set to NEW_PASSWORD
+# Function 3: Ensure root password is set to NEW_PASSWORD (only if different)
 set_root_password() {
   local IP=$1
   local PORT=$2
+  local OLD_PASS=$3
 
   /usr/bin/expect <<EOF > /dev/null 2>&1
   spawn ssh -o StrictHostKeyChecking=no -p $PORT root@$IP
   expect {
-      "*password:" { send "$NEW_PASSWORD\r"; exp_continue }
+      "*password:" { send "$OLD_PASS\r"; exp_continue }
       "*\$ " { send "echo -e '$NEW_PASSWORD\n$NEW_PASSWORD' | passwd root\r" }
   }
   expect eof
@@ -93,7 +92,9 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     PORT="22"
   fi
 
-  set_root_password "$IP" "$PORT"
+  if [[ "$OLD_PASS" != "$NEW_PASSWORD" ]]; then
+    set_root_password "$IP" "$PORT" "$OLD_PASS"
+  fi
 
   # Verify root login
   /usr/bin/expect <<EOF > /dev/null 2>&1
