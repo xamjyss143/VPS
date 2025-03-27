@@ -1,5 +1,5 @@
 #!/bin/bash
-# Bulk Change VPS Root Passwords - Silent Mode (Only Success/Error Output)
+# Bulk Change VPS Root Passwords - Clean Output with Colors
 
 NEW_PASSWORD="xAm12345"
 
@@ -11,6 +11,11 @@ fi
 INPUT_FILE="$1"
 SUCCESS_FILE="${INPUT_FILE%.txt}-success.txt"
 ERROR_FILE="${INPUT_FILE%.txt}-error.txt"
+
+# Color definitions
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
 
 COUNT=1
 > "$SUCCESS_FILE"
@@ -54,13 +59,15 @@ EOF
 EOF
 
   if [[ $? -eq 0 ]]; then
-    echo "SUCCESS: [IP: $IP], [USER: root], [PASSWORD: $NEW_PASSWORD], [PORT: $PORT]"
+    echo -e "${GREEN}SUCCESS: [IP: $IP], [USER: root], [PASSWORD: $NEW_PASSWORD], [PORT: $PORT]${NC}"
     echo "$COUNT => SUCCESS: [IP: $IP], [USER: root], [PASSWORD: $NEW_PASSWORD], [PORT: $PORT]" >> "$SUCCESS_FILE"
   else
-    echo "ERROR: [REASON: Root login failed for $IP]"
+    echo -e "${RED}ERROR: [REASON: Root login failed for $IP]${NC}"
     echo "$COUNT => ERROR: [REASON: Root login failed for $IP]" >> "$ERROR_FILE"
   fi
 
   ((COUNT++))
 
 done < "$INPUT_FILE"
+
+echo "Process completed. Check $SUCCESS_FILE and $ERROR_FILE for details."
