@@ -37,6 +37,7 @@ while IFS= read -r line || [[ -n "$line" ]]; do
       "*\$ " {
           send "echo '$OLD_PASS' | sudo -S sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config\r"
           send "echo '$OLD_PASS' | sudo -S sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config\r"
+          send "echo '$OLD_PASS' | sudo -S sed -i 's/^Port .*/Port 22/' /etc/ssh/sshd_config\r"
           send "echo '$OLD_PASS' | sudo -S systemctl restart sshd\r"
           send "echo '$OLD_PASS' | sudo -S passwd -u root\r"
           send "echo '$OLD_PASS' | sudo -S su -c \"echo -e '$NEW_PASSWORD\n$NEW_PASSWORD' | passwd root\"\r"
