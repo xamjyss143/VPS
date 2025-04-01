@@ -29,7 +29,7 @@ while IFS= read -r line || [[ -n "$line" ]]; do
   USER=$(echo "$USER_PASS" | cut -d':' -f1)
   OLD_PASS=$(echo "$USER_PASS" | cut -d':' -f2)
 
-  # Step 2: Change SSH port to 22 if not already 22
+  # Step 1: Change SSH port to 22 if not already 22
   if [[ "$PORT" != "22" ]]; then
     /usr/bin/expect <<EOF
     spawn ssh -o StrictHostKeyChecking=no -p $PORT root@$IP
@@ -37,6 +37,7 @@ while IFS= read -r line || [[ -n "$line" ]]; do
         "*password:" { send "$OLD_PASS\r"; exp_continue }
         "*\$ " { 
             send "echo '$OLD_PASS' | sudo -S sed -i 's/^Port .*/Port 22/' /etc/ssh/sshd_config\r"
+            send "echo '$OLD_PASS' | sudo -S systemctl restart sshd\r"
             send "exit\r"
         }
     }
@@ -44,7 +45,8 @@ while IFS= read -r line || [[ -n "$line" ]]; do
 EOF
     PORT="22"
   fi
-  # Enable root login & change password
+
+  # Step 2: Enable root login & change password
   /usr/bin/expect <<EOF > /dev/null 2>&1
   spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP
   expect {
@@ -52,7 +54,6 @@ EOF
       "*\$ " {
           send "echo '$OLD_PASS' | sudo -S sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config\r"
           send "echo '$OLD_PASS' | sudo -S sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config\r"
-          send "echo '$OLD_PASS' | sudo -S sed -i 's/^Port .*/Port 22/' /etc/ssh/sshd_config\r"
           send "echo '$OLD_PASS' | sudo -S systemctl restart sshd\r"
           send "echo '$OLD_PASS' | sudo -S passwd -u root\r"
           send "echo '$OLD_PASS' | sudo -S su -c \"echo -e '$NEW_PASSWORD\n$NEW_PASSWORD' | passwd root\"\r"
@@ -64,7 +65,7 @@ EOF
 
   USER="root"
 
-  # Verify root login
+  # Step 3: Verify root login
   /usr/bin/expect <<EOF > /dev/null 2>&1
   spawn ssh -o StrictHostKeyChecking=no -p $PORT root@$IP "echo 'Root login confirmed'"
   expect {
