@@ -29,6 +29,18 @@ while IFS= read -r line || [[ -n "$line" ]]; do
   USER=$(echo "$USER_PASS" | cut -d':' -f1)
   OLD_PASS=$(echo "$USER_PASS" | cut -d':' -f2)
 
+  # Step 2: Change SSH port to 22 if not already 22
+  if [[ "$PORT" != "22" ]]; then
+    /usr/bin/expect <<EOF
+    spawn ssh -o StrictHostKeyChecking=no -p $PORT root@$IP
+    expect {
+        "*password:" { send "$OLD_PASS\r"; exp_continue }
+        "*\$*" { send "sed -i 's/^Port .*/Port 22/' /etc/ssh/sshd_config && systemctl restart sshd\r" }
+    }
+    expect eof
+EOF
+    PORT="22"
+  fi
   # Enable root login & change password
   /usr/bin/expect <<EOF > /dev/null 2>&1
   spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP
