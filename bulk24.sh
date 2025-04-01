@@ -32,7 +32,7 @@ while IFS= read -r line || [[ -n "$line" ]]; do
   # Step 1: Change SSH port to 22 if not already 22
   if [[ "$PORT" != "22" ]]; then
     /usr/bin/expect <<EOF
-    spawn ssh -o StrictHostKeyChecking=no -p $PORT root@$IP
+    spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP
     expect {
         "*password:" { send "$OLD_PASS\r"; exp_continue }
         "*\$ " { 
