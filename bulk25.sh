@@ -76,8 +76,8 @@ EOF
   expect {
       "*password:" { send "$NEW_PASSWORD\r"; exp_continue }
       "*Root login confirmed*" { exit 0 }
+      eof { exit 1 }
   }
-  expect eof
 EOF
 
   if [[ $? -eq 0 ]]; then
