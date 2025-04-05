@@ -53,7 +53,11 @@ change_ssh_port() {
   spawn ssh -o StrictHostKeyChecking=no -p $PORT root@$IP
   expect {
       "*password:" { send "$NEW_PASSWORD\r"; exp_continue }
-      "*$ " { send "sed -i 's/^Port .*/Port 22/' /etc/ssh/sshd_config && systemctl restart sshd\r" }
+      "*$ " {
+          send "echo '$OLD_PASS' | sudo -S sed -i 's/^*Port.*/Port 22/' /etc/ssh/sshd_config\r" 
+          send "echo '$OLD_PASS' | sudo -S sed -i 's/^#*Port.*/Port 22/' /etc/ssh/sshd_config\r"          
+          }
+      
   }
   expect eof
 EOF
