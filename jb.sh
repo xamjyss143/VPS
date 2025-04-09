@@ -1,4 +1,3 @@
-
 #!/bin/bash
 # Bulk Change VPS Root Passwords - Clean Output with Colors
 
