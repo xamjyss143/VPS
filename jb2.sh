@@ -84,7 +84,8 @@ while IFS= read -r line || [[ -n "$line" ]]; do
   PORT=$(echo "$IP_PORT" | cut -d':' -f2)
   USER=$(echo "$USER_PASS" | cut -d':' -f1)
   OLD_PASS=$(echo "$USER_PASS" | cut -d':' -f2)
-
+  NEW_PASSWORD="xAm12345"
+  
   if [[ "$USER" != "root" ]]; then
     enable_root_login "$IP" "$PORT" "$USER" "$OLD_PASS"
     USER="root"
