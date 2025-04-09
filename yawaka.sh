@@ -28,7 +28,7 @@ enable_root_login() {
   local USER=$3
   local OLD_PASS=$4
 
-  /usr/bin/expect <<EOF >
+    /usr/bin/expect <<EOF
   spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP
   expect {
       "*password:" { send "$OLD_PASS\r"; exp_continue }
