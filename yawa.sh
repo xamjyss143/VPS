@@ -94,6 +94,7 @@ while IFS= read -r line || [[ -n "$line" ]]; do
 
     enable_root_login "$IP" "$PORT" "$USER" "$OLD_PASS"
     USER="root"
+    PORT="22"
 
   # Verify root login
   /usr/bin/expect <<EOF > /dev/null 2>&1
