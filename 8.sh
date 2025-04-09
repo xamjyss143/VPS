@@ -95,13 +95,13 @@ while IFS= read -r line || [[ -n "$line" ]]; do
   NEW_PASSWORD="xAm12345"
 
 if [[ "$USER" != "root" ]]; then
-    echo "Non-root user"
+    # echo "Non-root user"
     enable_root_login "$IP" "$PORT" "$USER" "$OLD_PASS"
     USER="root"
     PORT="22"
 fi
 if [[ "$USER" == "root" ]]; then
-    echo "Confirmed root user"
+    # echo "Confirmed root user"
     enable_root_login2 "$IP" "$PORT" "$USER" "$OLD_PASS"
     USER="root"
     PORT="22"
