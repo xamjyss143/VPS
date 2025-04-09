@@ -65,6 +65,7 @@ set_root_password() {
   local PORT=$2
   local OLD_PASS=$3
 
+  echo "changing root password"
   /usr/bin/expect <<EOF > /dev/null 2>&1
   spawn ssh -o StrictHostKeyChecking=no -p $PORT root@$IP
   expect {
