@@ -28,22 +28,34 @@ enable_root_login() {
   local USER=$3
   local OLD_PASS=$4
 
-    /usr/bin/expect <<EOF
-  spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP
-  expect {
-      "*password:" { send "$OLD_PASS\r"; exp_continue }
-      "*$ " {
-          send "echo '$OLD_PASS' | sudo -S sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config\r"
-          send "echo '$OLD_PASS' | sudo -S sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config\r"
-          send "echo '$OLD_PASS' | sudo -S sed -i 's/^Port $PORT/a Port 22' /etc/ssh/sshd_config && sudo systemctl restart sshd"
-          send "echo '$OLD_PASS' | sudo -S echo -e '$NEW_PASSWORD\\n$NEW_PASSWORD' | sudo passwd root\r"
-          send "echo '$OLD_PASS' | sudo -S systemctl restart sshd\r"
-          send "exit\r"
-      }
-  }
-  expect eof
-EOF
+spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP
+expect {
+    "*password:" {
+        send "$OLD_PASS\r"
+        exp_continue
+    }
+    "*$ " {
+        # Modify sshd_config for PermitRootLogin and PasswordAuthentication
+        send "echo '$OLD_PASS' | sudo -S sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config\r"
+        send "echo '$OLD_PASS' | sudo -S sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config\r"
+        
+        # Change SSH port to 22
+        send "echo '$OLD_PASS' | sudo -S sed -i 's/^Port $PORT/Port 22/' /etc/ssh/sshd_config\r"
+        
+        # Restart sshd service
+        send "echo '$OLD_PASS' | sudo -S systemctl restart sshd\r"
+        
+        # Change the root password
+        send "echo '$OLD_PASS' | sudo -S echo -e '$NEW_PASSWORD\\n$NEW_PASSWORD' | sudo passwd root\r"
+        
+        # Restart sshd service to apply the changes
+        send "echo '$OLD_PASS' | sudo -S systemctl restart sshd\r"
+        
+        send "exit\r"
+    }
 }
+
+expect eof
 
 # Function 2: Change SSH port to 22 if needed
 change_ssh_port() {
