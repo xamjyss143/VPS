@@ -97,8 +97,6 @@ while IFS= read -r line || [[ -n "$line" ]]; do
   fi
 
   if [[ "$OLD_PASS" != "$NEW_PASSWORD" ]]; then
-  
-    echo "changing root password"
     set_root_password "$IP" "$PORT" "$OLD_PASS"
   fi
 
