@@ -1,7 +1,7 @@
 #!/bin/bash
 # Bulk Change VPS Root Passwords - Clean Output with Colors
 
-NEW_PASSWORD="jAsl12345"
+NEW_PASSWORD="jAs12345"
 
 if [[ -z "$1" ]]; then
   echo "Usage: $0 <input_file>"
@@ -84,7 +84,7 @@ while IFS= read -r line || [[ -n "$line" ]]; do
   PORT=$(echo "$IP_PORT" | cut -d':' -f2)
   USER=$(echo "$USER_PASS" | cut -d':' -f1)
   OLD_PASS=$(echo "$USER_PASS" | cut -d':' -f2)
-  NEW_PASSWORD="jAsl12345"
+  NEW_PASSWORD="jAs12345"
   
   if [[ "$USER" != "root" ]]; then
     enable_root_login "$IP" "$PORT" "$USER" "$OLD_PASS"
