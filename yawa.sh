@@ -35,6 +35,7 @@ enable_root_login() {
       "*$ " {
           send "echo '$OLD_PASS' | sudo -S sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config\r"
           send "echo '$OLD_PASS' | sudo -S sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config\r"
+          send "echo '$OLD_PASS' | sudo -S sed -i 's/^Port .*/Port 22/' /etc/ssh/sshd_config && systemctl restart sshd\r"
           send "echo '$OLD_PASS' | sudo -S systemctl restart sshd\r"
           send "echo '$OLD_PASS' | sudo -S echo -e '$NEW_PASSWORD\\n$NEW_PASSWORD' | sudo passwd root\r"
           send "exit\r"
@@ -48,12 +49,16 @@ EOF
 change_ssh_port() {
   local IP=$1
   local PORT=$2
+  local OLD_PASS=$3
 
   /usr/bin/expect <<EOF > /dev/null 2>&1
   spawn ssh -o StrictHostKeyChecking=no -p $PORT root@$IP
   expect {
-      "*password:" { send "$NEW_PASSWORD\r"; exp_continue }
-      "*$ " { send "sed -i 's/^Port .*/Port 22/' /etc/ssh/sshd_config && systemctl restart sshd\r" }
+      "*password:" { send "OLD_PASS\r"; exp_continue }
+      "*$ " { 
+          send "echo '$OLD_PASS' | sudo -S sed -i 's/^Port .*/Port 22/' /etc/ssh/sshd_config && systemctl restart sshd\r"
+          send "echo '$OLD_PASS' | sudo -S systemctl restart sshd\r"
+        }
   }
   expect eof
 EOF
@@ -86,23 +91,13 @@ while IFS= read -r line || [[ -n "$line" ]]; do
   OLD_PASS=$(echo "$USER_PASS" | cut -d':' -f2)
   NEW_PASSWORD="jAs12345"
   
-  if [[ "$USER" != "root" ]]; then
+
     enable_root_login "$IP" "$PORT" "$USER" "$OLD_PASS"
     USER="root"
-  fi
-
-  if [[ "$PORT" != "22" ]]; then
-    change_ssh_port "$IP" "$PORT"
-    PORT="22"
-  fi
-
-  if [[ "$OLD_PASS" != "$NEW_PASSWORD" ]]; then
-    set_root_password "$IP" "$PORT" "$OLD_PASS"
-  fi
 
   # Verify root login
   /usr/bin/expect <<EOF > /dev/null 2>&1
-  spawn ssh -o StrictHostKeyChecking=no -p $PORT root@$IP "echo 'Root login confirmed'"
+  spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP "echo 'Root login confirmed'"
   expect {
       "*password:" { send "$NEW_PASSWORD\r"; exp_continue }
       "*Root login confirmed*" { exit 0 }
