@@ -69,7 +69,9 @@ set_root_password() {
   spawn ssh -o StrictHostKeyChecking=no -p $PORT root@$IP
   expect {
       "*password:" { send "$OLD_PASS\r"; exp_continue }
-      "*$ " { send "echo -e '$NEW_PASSWORD\n$NEW_PASSWORD' | passwd root\r" }
+      "*$ " { 
+          send "echo '$OLD_PASS' | sudo -S echo -e '$NEW_PASSWORD\\n$NEW_PASSWORD' | sudo passwd root\r"
+        }
   }
   expect eof
 EOF
