@@ -35,8 +35,8 @@ enable_root_login() {
       "*$ " {
           send "echo '$OLD_PASS' | sudo -S sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config\r"
           send "echo '$OLD_PASS' | sudo -S sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config\r"
-          send "echo '$OLD_PASS' | sudo -S echo -e '$NEW_PASSWORD\\n$NEW_PASSWORD' | sudo passwd root\r"
           send "echo '$OLD_PASS' | sudo -S systemctl restart sshd\r"
+          send "echo '$OLD_PASS' | sudo -S echo -e '$NEW_PASSWORD\\n$NEW_PASSWORD' | sudo passwd root\r"
           send "exit\r"
       }
   }
@@ -68,7 +68,7 @@ set_root_password() {
   /usr/bin/expect <<EOF > /dev/null 2>&1
   spawn ssh -o StrictHostKeyChecking=no -p $PORT root@$IP
   expect {
-      "*password:" { send "$NEW_PASSWORD\r"; exp_continue }
+      "*password:" { send "$OLD_PASS\r"; exp_continue }
       "*$ " { send "echo -e '$NEW_PASSWORD\n$NEW_PASSWORD' | passwd root\r" }
   }
   expect eof
