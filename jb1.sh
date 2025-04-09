@@ -1,7 +1,7 @@
 #!/bin/bash
 # Bulk Change VPS Root Passwords - Clean Output with Colors
 
-NEW_PASSWORD="jAsl12345"
+NEW_PASSWORD="jAs12345"
 
 if [[ -z "$1" ]]; then
   echo "Usage: $0 <input_file>"
@@ -68,7 +68,7 @@ set_root_password() {
   /usr/bin/expect <<EOF > /dev/null 2>&1
   spawn ssh -o StrictHostKeyChecking=no -p $PORT root@$IP
   expect {
-      "*password:" { send "$OLD_PASS\r"; exp_continue }
+      "*password:" { send "$NEW_PASSWORD\r"; exp_continue }
       "*$ " { send "echo -e '$NEW_PASSWORD\n$NEW_PASSWORD' | passwd root\r" }
   }
   expect eof
