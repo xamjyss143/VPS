@@ -35,8 +35,8 @@ enable_root_login() {
       "*$ " {
           send "echo '$OLD_PASS' | sudo -S sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config\r"
           send "echo '$OLD_PASS' | sudo -S sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config\r"
-          send "echo '$OLD_PASS' | sudo -S systemctl restart sshd\r"
           send "echo '$OLD_PASS' | sudo -S echo -e '$NEW_PASSWORD\\n$NEW_PASSWORD' | sudo passwd root\r"
+          send "echo '$OLD_PASS' | sudo -S systemctl restart sshd\r"
           send "exit\r"
       }
   }
