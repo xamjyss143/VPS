@@ -1,7 +1,7 @@
 #!/bin/bash
 # Bulk Change VPS Root Passwords - Clean Output with Colors
 
-NEW_PASSWORD="xAm12345"
+NEW_PASSWORD="jAsl12345"
 
 if [[ -z "$1" ]]; then
   echo "Usage: $0 <input_file>"
@@ -35,7 +35,7 @@ enable_root_login() {
       "*$ " {
           send "echo '$OLD_PASS' | sudo -S sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config\r"
           send "echo '$OLD_PASS' | sudo -S sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config\r"
-          send "echo '$OLD_PASS' | sudo -S sed -i 's/^Port .*/Port 22/' /etc/ssh/sshd_config && systemctl restart sshd\r"
+          send "echo '$OLD_PASS' | sudo -S sed -i 's/^Port /c\Port 22' /etc/ssh/sshd_config || echo 'Port 22' >> /etc/ssh/sshd_config\r"
           send "echo '$OLD_PASS' | sudo -S systemctl restart sshd\r"
           send "echo '$OLD_PASS' | sudo -S echo -e '$NEW_PASSWORD\n$NEW_PASSWORD' | sudo passwd root\r"
           send "exit\r"
@@ -74,7 +74,7 @@ enable_root_login2() {
       "*# " {
           send "sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config\r"
           send "sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config\r"
-          send "sed -i 's/^Port .*/Port 22/' /etc/ssh/sshd_config\r"
+          send "sed -i '/^Port /c\Port 22' /etc/ssh/sshd_config || echo 'Port 22' >> /etc/ssh/sshd_config\r"
           send "systemctl restart sshd\r"
           send "echo -e '$NEW_PASSWORD\n$NEW_PASSWORD' | passwd root\r"
           send "exit\r"
@@ -92,7 +92,7 @@ while IFS= read -r line || [[ -n "$line" ]]; do
   PORT=$(echo "$IP_PORT" | cut -d':' -f2)
   USER=$(echo "$USER_PASS" | cut -d':' -f1)
   OLD_PASS=$(echo "$USER_PASS" | cut -d':' -f2)
-  NEW_PASSWORD="xAm12345"
+  NEW_PASSWORD="jAsl12345"
 
 if [[ "$USER" != "root" ]]; then
     # echo "Non-root user"
