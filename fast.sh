@@ -41,6 +41,8 @@ process_host() {
 
   if [[ "$USER" == "root" ]]; then
     enable_root_login2 "$IP" "$PORT" "$USER" "$OLD_PASS"
+    USER="root"
+    PORT="22"
   fi
 
   /usr/bin/expect <<EOF > /dev/null 2>&1
