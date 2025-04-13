@@ -2,7 +2,7 @@
 # Bulk Change VPS Root Passwords - Parallel 10 at a Time
 
 NEW_PASSWORD="xAm12345"
-MAX_CONCURRENT=10
+MAX_CONCURRENT=20
 
 if [[ -z "$1" ]]; then
   echo "Usage: $0 <input_file>"
