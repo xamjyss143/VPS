@@ -1,0 +1,119 @@
+#!/bin/bash
+# Bulk Change VPS Root Passwords - Parallel 10 at a Time
+
+NEW_PASSWORD="jAsl12345"
+MAX_CONCURRENT=20
+
+if [[ -z "$1" ]]; then
+  echo "Usage: $0 <input_file>"
+  exit 1
+fi
+
+INPUT_FILE="$1"
+SUCCESS_FILE="${INPUT_FILE%.txt}-success.txt"
+ERROR_FILE="${INPUT_FILE%.txt}-error.txt"
+
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+> "$SUCCESS_FILE"
+> "$ERROR_FILE"
+
+COUNT=1
+
+# Function to manage each host
+process_host() {
+  local COUNT=$1
+  local LINE=$2
+  local IP_PORT=$(echo "$LINE" | cut -d'@' -f1)
+  local USER_PASS=$(echo "$LINE" | cut -d'@' -f2)
+  local IP=$(echo "$IP_PORT" | cut -d':' -f1)
+  local PORT=$(echo "$IP_PORT" | cut -d':' -f2)
+  local USER=$(echo "$USER_PASS" | cut -d':' -f1)
+  local OLD_PASS=$(echo "$USER_PASS" | cut -d':' -f2)
+
+  if [[ "$USER" != "root" ]]; then
+    enable_root_login "$IP" "$PORT" "$USER" "$OLD_PASS"
+    USER="root"
+    PORT="22"
+  fi
+
+  if [[ "$USER" == "root" ]]; then
+    enable_root_login2 "$IP" "$PORT" "$USER" "$OLD_PASS"
+    USER="root"
+    PORT="22"
+  fi
+
+  /usr/bin/expect <<EOF > /dev/null 2>&1
+  spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP "echo 'Root login confirmed'"
+  expect {
+    "*password:" { send "$NEW_PASSWORD\r"; exp_continue }
+    "*Root login confirmed*" { exit 0 }
+  }
+  expect eof
+EOF
+
+  if [[ $? -eq 0 ]]; then
+    echo -e "${GREEN}SUCCESS: [IP: $IP], [USER: root], [PASSWORD: $NEW_PASSWORD], [PORT: $PORT]${NC}"
+    echo "$COUNT => SUCCESS: [IP: $IP], [USER: root], [PASSWORD: $NEW_PASSWORD], [PORT: $PORT]" >> "$SUCCESS_FILE"
+  else
+    echo -e "${RED}ERROR: [REASON: Root login failed for $IP]${NC}"
+    echo "$COUNT => ERROR: [REASON: Root login failed for $IP]" >> "$ERROR_FILE"
+  fi
+}
+
+# Function 1
+enable_root_login() {
+  local IP=$1; local PORT=$2; local USER=$3; local OLD_PASS=$4
+  /usr/bin/expect <<EOF > /dev/null 2>&1
+  spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP
+  expect {
+      "*password:" { send "$OLD_PASS\r"; exp_continue }
+      "*$ " {
+          send "echo '$OLD_PASS' | sudo -S sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config\r"
+          send "echo '$OLD_PASS' | sudo -S sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config\r"
+          send "echo '$OLD_PASS' | sudo -S sed -i 's/^Port /c\Port 22' /etc/ssh/sshd_config || echo 'Port 22' >> /etc/ssh/sshd_config\r"
+          send "echo '$OLD_PASS' | sudo -S systemctl restart sshd\r"
+          send "echo '$OLD_PASS' | sudo -S echo -e '$NEW_PASSWORD\n$NEW_PASSWORD' | sudo passwd root\r"
+          send "exit\r"
+      }
+  }
+  expect eof
+EOF
+}
+
+# Function 2
+enable_root_login2() {
+  local IP=$1; local PORT=$2; local USER=$3; local OLD_PASS=$4
+  /usr/bin/expect <<EOF > /dev/null 2>&1
+  spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP
+  expect {
+      "*password:" { send "$OLD_PASS\r"; exp_continue }
+      "*# " {
+          send "sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config\r"
+          send "sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config\r"
+          send "sed -i '/^Port /c\Port 22' /etc/ssh/sshd_config || echo 'Port 22' >> /etc/ssh/sshd_config\r"
+          send "systemctl restart sshd\r"
+          send "echo -e '$NEW_PASSWORD\n$NEW_PASSWORD' | passwd root\r"
+          send "exit\r"
+      }
+  }
+  expect eof
+EOF
+}
+
+# Parallel processing loop
+while IFS= read -r line || [[ -n "$line" ]]; do
+  while (( $(jobs -rp | wc -l) >= MAX_CONCURRENT )); do
+    wait -n
+  done
+
+  process_host "$COUNT" "$line" &
+  ((COUNT++))
+done < "$INPUT_FILE"
+
+# Wait for all remaining jobs
+wait
+
+echo "Process completed. Check $SUCCESS_FILE and $ERROR_FILE for details."
