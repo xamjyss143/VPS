@@ -1,5 +1,5 @@
 #!/bin/bash
-# Bulk Change VPS Root Passwords - Parallel 10 at a Time
+# Bulk Change VPS Root Passwords - Parallel 20 at a Time
 
 NEW_PASSWORD="xAm12345"
 MAX_CONCURRENT=20
@@ -46,6 +46,7 @@ process_host() {
   fi
 
   /usr/bin/expect <<EOF > /dev/null 2>&1
+  set timeout -1
   spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP "echo 'Root login confirmed'"
   expect {
     "*password:" { send "$NEW_PASSWORD\r"; exp_continue }
@@ -67,6 +68,7 @@ EOF
 enable_root_login() {
   local IP=$1; local PORT=$2; local USER=$3; local OLD_PASS=$4
   /usr/bin/expect <<EOF > /dev/null 2>&1
+  set timeout -1
   spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP
   expect {
     "*password:" { send "$OLD_PASS\r"; exp_continue }
@@ -88,6 +90,7 @@ EOF
 enable_root_login2() {
   local IP=$1; local PORT=$2; local USER=$3; local OLD_PASS=$4
   /usr/bin/expect <<EOF > /dev/null 2>&1
+  set timeout -1
   spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP
   expect {
     "*password:" { send "$OLD_PASS\r"; exp_continue }
