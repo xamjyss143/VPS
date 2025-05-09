@@ -1,0 +1,51 @@
+#!/bin/bash
+
+# Usage: ./add-v2ray-client.sh --uuid UUID-HERE --name NAME-HERE
+
+CONFIG_FILE="/etc/xray/config.json"
+TMP_FILE="/tmp/config.json.tmp"
+RELOAD_CMD="systemctl restart xray"
+
+# Parse arguments
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        --uuid) UUID="$2"; shift ;;
+        --name) NAME="$2"; shift ;;
+        *) echo "Unknown parameter passed: $1"; exit 1 ;;
+    esac
+    shift
+done
+
+# Validate input
+if [[ -z "$UUID" || -z "$NAME" ]]; then
+    echo "Usage: $0 --uuid UUID --name NAME"
+    exit 1
+fi
+
+# Check if jq is installed
+if ! command -v jq &> /dev/null; then
+    echo "Error: jq is not installed. Please install it first."
+    exit 1
+fi
+
+# Add clients to each inbound
+jq --arg uuid "$UUID" --arg name "$NAME" '
+  .inbounds |= map(
+    if .protocol == "vless" then
+      .settings.clients += [{"id": $uuid, "name": $name}]
+    elif .protocol == "vmess" then
+      .settings.clients += [{"id": $uuid, "alterId": 0, "name": $name}]
+    elif .protocol == "trojan" then
+      .settings.clients += [{"password": $uuid, "name": $name}]
+    elif .protocol == "shadowsocks" then
+      .settings.clients += [{"password": $uuid, "method": "aes-128-gcm", "name": $name}]
+    else
+      .
+    end
+  )
+' "$CONFIG_FILE" > "$TMP_FILE" && mv "$TMP_FILE" "$CONFIG_FILE"
+
+# Restart service
+$RELOAD_CMD
+
+echo "Client [$NAME] added to all protocols with UUID [$UUID]."
