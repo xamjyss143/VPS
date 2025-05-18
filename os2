@@ -1,5 +1,5 @@
 #!/bin/bash
-# Fixed VPS OS Checker with Better Expect Handling
+# Fully Fixed VPS OS Checker
 
 MAX_CONCURRENT=20
 
@@ -32,27 +32,48 @@ check_os() {
   local USER=$(echo "$USER_PASS" | cut -d':' -f1)
   local PASS=$(echo "$USER_PASS" | cut -d':' -f2)
 
-  OS_OUTPUT=$(expect -c "
-    set timeout 10
+  OS_INFO=$(expect -c "
+    set timeout 15
     log_user 0
-    spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP \"cat /etc/os-release\"
+    spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP
     expect {
       \"*assword:\" {
         send \"$PASS\r\"
         exp_continue
       }
-      \"NAME=*\" {
-        exp_continue
+      \"*#\" {
+        send \"cat /etc/os-release\r\"
       }
-      eof
+      \"*$ \" {
+        send \"cat /etc/os-release\r\"
+      }
+    }
+    expect {
+      \"NAME=\" {
+        set output \"\"
+        expect {
+          -re {NAME=.*} {
+            append output \$expect_out(buffer)
+            exp_continue
+          }
+          -re {VERSION=.*} {
+            append output \"\\n\"\$expect_out(buffer)
+          }
+        }
+        send \"exit\r\"
+        expect eof
+        puts \$output
+      }
+      timeout {
+        send_user \"[TIMEOUT] Failed to get OS info from $IP\\n\"
+        exit 1
+      }
     }
   ")
 
-  # Extract NAME and VERSION from the output
-  OS_NAME=$(echo "$OS_OUTPUT" | grep '^NAME=' | cut -d'=' -f2 | tr -d '"')
-  OS_VER=$(echo "$OS_OUTPUT" | grep '^VERSION=' | cut -d'=' -f2 | tr -d '"')
-
-  if [[ -n "$OS_NAME" && -n "$OS_VER" ]]; then
+  if [[ "$OS_INFO" == *"NAME="* ]]; then
+    OS_NAME=$(echo "$OS_INFO" | grep '^NAME=' | cut -d'=' -f2 | tr -d '"')
+    OS_VER=$(echo "$OS_INFO" | grep '^VERSION=' | cut -d'=' -f2 | tr -d '"')
     echo -e "${GREEN}SUCCESS [$IP:$PORT] - OS: $OS_NAME $OS_VER${NC}"
     echo "$COUNT => [$IP:$PORT] - OS: $OS_NAME $OS_VER" >> "$SUCCESS_FILE"
   else
@@ -61,7 +82,7 @@ check_os() {
   fi
 }
 
-# Loop through input file
+# Parallel processing
 while IFS= read -r line || [[ -n "$line" ]]; do
   while (( $(jobs -rp | wc -l) >= MAX_CONCURRENT )); do
     wait -n
