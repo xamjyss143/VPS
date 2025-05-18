@@ -1,0 +1,72 @@
+#!/bin/bash
+# Bulk VPS OS Checker - Parallel 20 at a Time
+
+MAX_CONCURRENT=20
+
+if [[ -z "$1" ]]; then
+  echo "Usage: $0 <input_file>"
+  exit 1
+fi
+
+INPUT_FILE="$1"
+SUCCESS_FILE="${INPUT_FILE%.txt}-os-success.txt"
+ERROR_FILE="${INPUT_FILE%.txt}-os-error.txt"
+
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+> "$SUCCESS_FILE"
+> "$ERROR_FILE"
+
+COUNT=1
+
+# Function to get OS info from each host
+check_os() {
+  local COUNT=$1
+  local LINE=$2
+
+  local IP_PORT=$(echo "$LINE" | cut -d'@' -f1)
+  local USER_PASS=$(echo "$LINE" | cut -d'@' -f2)
+  local IP=$(echo "$IP_PORT" | cut -d':' -f1)
+  local PORT=$(echo "$IP_PORT" | cut -d':' -f2)
+  local USER=$(echo "$USER_PASS" | cut -d':' -f1)
+  local PASS=$(echo "$USER_PASS" | cut -d':' -f2)
+
+  OS_INFO=$(expect -c "
+    log_user 0
+    spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP \"cat /etc/os-release\"
+    expect {
+      \"*password:\" {
+        send \"$PASS\r\"
+        exp_continue
+      }
+      eof
+    }
+  ")
+
+  if [[ -n "$OS_INFO" ]]; then
+    OS_NAME=$(echo "$OS_INFO" | grep '^NAME=' | cut -d'=' -f2 | tr -d '"')
+    OS_VER=$(echo "$OS_INFO" | grep '^VERSION=' | cut -d'=' -f2 | tr -d '"')
+    echo -e "${GREEN}SUCCESS [$IP:$PORT] - OS: $OS_NAME $OS_VER${NC}"
+    echo "$COUNT => [$IP:$PORT] - OS: $OS_NAME $OS_VER" >> "$SUCCESS_FILE"
+  else
+    echo -e "${RED}ERROR [$IP:$PORT] - Could not fetch OS info${NC}"
+    echo "$COUNT => [$IP:$PORT] - ERROR: Could not fetch OS info" >> "$ERROR_FILE"
+  fi
+}
+
+# Parallel loop
+while IFS= read -r line || [[ -n "$line" ]]; do
+  while (( $(jobs -rp | wc -l) >= MAX_CONCURRENT )); do
+    wait -n
+  done
+
+  check_os "$COUNT" "$line" &
+  ((COUNT++))
+done < "$INPUT_FILE"
+
+# Wait for all jobs to finish
+wait
+
+echo "OS check completed. See $SUCCESS_FILE and $ERROR_FILE for results."
