@@ -1,53 +1,56 @@
 #!/bin/bash
 
-# Update package list and install HAProxy
-sudo apt update
-sudo apt install -y haproxy apache2-utils
+set -e
 
-# Enable HAProxy to start on boot
-sudo systemctl enable haproxy
+# Check if running as root
+if [[ $EUID -ne 0 ]]; then
+   echo "❌ This script must be run as root."
+   exit 1
+fi
 
-# Create a password file for basic authentication
-echo "xproxy:$(openssl passwd -crypt xproxy)" | sudo tee /etc/haproxy/htpasswd
+echo "✅ Installing HAProxy..."
+apt update
+apt install -y haproxy
 
-# Configure HAProxy
-cat <<EOL | sudo tee /etc/haproxy/haproxy.cfg
+echo "🔧 Backing up existing HAProxy config..."
+cp /etc/haproxy/haproxy.cfg /etc/haproxy/haproxy.cfg.bak.$(date +%s)
+
+echo "✍️ Writing new HAProxy config..."
+cat > /etc/haproxy/haproxy.cfg <<EOF
 global
     log /dev/log    local0
     log /dev/log    local1 notice
-    chroot /var/lib/haproxy
-    stats socket /run/haproxy/admin.sock mode 660 level admin
-    stats timeout 30s
-    user haproxy
-    group haproxy
+    maxconn 2000
     daemon
 
 defaults
     log     global
-    mode    http
-    option  httplog
-    option  dontlognull
-    timeout connect 5000ms
-    timeout client  50000ms
-    timeout server  50000ms
+    mode    tcp
+    option  tcplog
+    timeout connect 5s
+    timeout client  50s
+    timeout server  50s
 
-frontend http_front
-    bind *:3134
-    acl AuthRequired http_auth(auth_users)
-    http-request auth basic auth_users
-    default_backend http_back
+frontend proxy_front
+    bind *:8080
+    default_backend proxy_pool
 
-backend http_back
-    server server1 127.0.0.1:8080 maxconn 200
-    server server2 127.0.0.1:8081 maxconn 200
+backend proxy_pool
+    balance roundrobin
 
-# Define the auth group
-userlist auth_users
-    user xproxy password xproxy
-EOL
+    server proxy1 223.29.253.137:80 check
+    server proxy2 191.101.109.52:80 check
+    server proxy3 196.244.48.44:80 check
+    server proxy4 191.101.109.97:80 check
+    server proxy5 191.101.109.80:80 check
+    server proxy6 198.46.222.201:80 check
+    server proxy7 192.3.236.222:80 check
+    server proxy8 196.244.48.100:80 check
+    server proxy9 196.244.48.252:80 check
+    server proxy10 223.29.253.119:80 check
+EOF
 
-# Restart HAProxy to apply the changes
-sudo systemctl restart haproxy
+echo "🔄 Restarting HAProxy..."
+systemctl restart haproxy
 
-# Check status
-sudo systemctl status haproxy
+echo "✅ HAProxy has been installed and configured."
