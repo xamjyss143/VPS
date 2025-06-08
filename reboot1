@@ -1,0 +1,64 @@
+#!/bin/bash
+# Bulk Reboot VPS – verify port 22 really closes
+
+MAX_CONCURRENT=20
+TIMEOUT=90          # seconds to wait for port to drop
+
+if [[ -z $1 ]]; then
+  echo "Usage: $0 <input_file>"; exit 1
+fi
+
+INPUT_FILE=$1
+SUCCESS_FILE="${INPUT_FILE%.txt}-success.txt"
+ERROR_FILE="${INPUT_FILE%.txt}-error.txt"
+
+GREEN='\033[0;32m'; RED='\033[0;31m'; NC='\033[0m'
+> "$SUCCESS_FILE"; > "$ERROR_FILE"
+
+process_host () {
+  local idx=$1 line=$2
+  local ip=$(cut -d'@' -f1 <<<"$line" | cut -d':' -f1)
+  local port=$(cut -d'@' -f1 <<<"$line" | cut -d':' -f2)
+  local user=$(cut -d'@' -f2 <<<"$line" | cut -d':' -f1)
+  local pass=$(cut -d':' -f3 <<<"$line")        # after second :
+
+  /usr/bin/expect <<EOF  >/dev/null 2>&1
+  set timeout -1
+  log_user 0
+  spawn ssh -o StrictHostKeyChecking=no -p $port $user@$ip
+  expect "*password:"
+  send "$pass\r"
+  expect "*# "                   ;# we’re root
+  send "nohup reboot >/dev/null 2>&1 &\r"
+  send "exit\r"
+  expect eof
+EOF
+
+  # Wait for SSH port to become unreachable
+  local elapsed=0
+  while nc -z -w1 "$ip" "$port" 2>/dev/null; do
+    sleep 2
+    (( elapsed += 2 ))
+    [[ $elapsed -ge $TIMEOUT ]] && break
+  done
+
+  if (( elapsed < TIMEOUT )); then
+    echo -e "${GREEN}SUCCESS: $ip rebooting (port closed)${NC}"
+    echo "$idx => SUCCESS: $ip rebooting" >> "$SUCCESS_FILE"
+  else
+    echo -e "${RED}ERROR: $ip still reachable after $TIMEOUT s${NC}"
+    echo "$idx => ERROR: $ip still reachable after $TIMEOUT s" >> "$ERROR_FILE"
+  fi
+}
+
+# ----- parallel loop ---------------------------------------------------------
+n=1
+while IFS= read -r line && [[ -n $line ]]; do
+  while (( $(jobs -rp | wc -l) >= MAX_CONCURRENT )); do
+    wait -n
+  done
+  process_host "$n" "$line" &
+  (( n++ ))
+done < "$INPUT_FILE"
+wait
+echo "Done.  See $SUCCESS_FILE and $ERROR_FILE."
