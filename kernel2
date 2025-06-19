@@ -89,48 +89,41 @@ EOF
 # Function 2 - Already root and must change password on login
 enable_root_login2() {
   local IP=$1; local PORT=$2; local USER=$3; local OLD_PASS=$4
-  /usr/bin/expect <<EOF > /dev/null 2>&1
-  set timeout -1
-  log_user 0
-  spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP
+  /usr/bin/expect <<EOF
+    log_user 1
+    set timeout 30
+    spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP
 
-  expect {
-    "password:" {
-      send "$OLD_PASS\r"
-      exp_continue
+    expect {
+      "*password:" {
+        send "$OLD_PASS\r"
+        exp_continue
+      }
+ 
+      "*# " {
+        send "$OLD_PASS\r"
+        send "$NEW_PASSWORD\r"
+        send "$NEW_PASSWORD\r"
+        send "sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config\r"
+        send "sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config\r"
+        send "sed -i '/^Port /c\\Port 22' /etc/ssh/sshd_config || echo 'Port 22' >> /etc/ssh/sshd_config\r"
+        send "systemctl restart sshd\r"
+        send "apt install -y curl\r"
+        send "exit\r"
+      }
+      timeout {
+        puts "ERROR: Timeout waiting for prompt on $IP"
+        exit 1
+      }
+      eof {
+        puts "ERROR: Connection closed unexpectedly on $IP"
+        exit 1
+      }
     }
-    "Current password:" {
-      send "$OLD_PASS\r"
-      exp_continue
-    }
-    "New password:" {
-      send "$NEW_PASSWORD\r"
-      exp_continue
-    }
-    "Retype new password:" {
-      send "$NEW_PASSWORD\r"
-      exp_continue
-    }
-    "*# " {
-      send "sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config\r"
-      send "sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config\r"
-      send "sed -i '/^Port /c\\Port 22' /etc/ssh/sshd_config || echo 'Port 22' >> /etc/ssh/sshd_config\r"
-      send "systemctl restart sshd\r"
-      send "apt install -y curl\r"
-      send "exit\r"
-    }
-    timeout {
-      exit 1
-    }
-    eof {
-      exit 1
-    }
-  }
 
-  expect eof
+    expect eof
 EOF
 }
-
 # Parallel processing loop
 while IFS= read -r line || [[ -n "$line" ]]; do
   while (( $(jobs -rp | wc -l) >= MAX_CONCURRENT )); do
