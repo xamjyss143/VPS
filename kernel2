@@ -91,7 +91,9 @@ enable_root_login2() {
   local IP=$1; local PORT=$2; local USER=$3; local OLD_PASS=$4
   /usr/bin/expect <<EOF > /dev/null 2>&1
   set timeout -1
+  log_user 0
   spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP
+
   expect {
     "password:" {
       send "$OLD_PASS\r"
@@ -117,7 +119,14 @@ enable_root_login2() {
       send "apt install -y curl\r"
       send "exit\r"
     }
+    timeout {
+      exit 1
+    }
+    eof {
+      exit 1
+    }
   }
+
   expect eof
 EOF
 }
