@@ -89,7 +89,7 @@ EOF
 # Function 2 - Already root and must change password on login
 enable_root_login2() {
   local IP=$1; local PORT=$2; local USER=$3; local OLD_PASS=$4
-  /usr/bin/expect <<EOF
+  /usr/bin/expect <<EOF > /dev/null 2>&1
     log_user 1
     set timeout 30
     spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP
