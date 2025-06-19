@@ -99,7 +99,6 @@ enable_root_login2() {
         send "$OLD_PASS\r"
         exp_continue
       }
- 
       "*# " {
         send "$OLD_PASS\r"
         send "$NEW_PASSWORD\r"
