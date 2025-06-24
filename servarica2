@@ -49,7 +49,7 @@ process_host() {
   set timeout -1
   spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP "echo 'Root login confirmed'"
   expect {
-    "*password:" { send "$NEW_PASSWORD\r"; exp_continue }
+    "*password:" { send -- "$NEW_PASSWORD\r"; exp_continue }
     "*Root login confirmed*" { exit 0 }
   }
   expect eof
@@ -71,14 +71,14 @@ enable_root_login() {
   set timeout -1
   spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP
   expect {
-    "*password:" { send "$OLD_PASS\r"; exp_continue }
+    "*password:" { send -- "$OLD_PASS\r"; exp_continue }
     "*$ " {
-      send "echo '$OLD_PASS' | sudo -S sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config\r"
-      send "echo '$OLD_PASS' | sudo -S sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config\r"
-      send "echo '$OLD_PASS' | sudo -S sed -i 's/^Port /c\\Port 22/' /etc/ssh/sshd_config || echo 'Port 22' | sudo tee -a /etc/ssh/sshd_config\r"
-      send "echo '$OLD_PASS' | sudo -S systemctl restart sshd\r"
-      send "echo '$OLD_PASS' | sudo -S bash -c \"echo -e '$NEW_PASSWORD\n$NEW_PASSWORD' | passwd root\"\r"
-      send "echo '$OLD_PASS' | sudo -S apt install -y curl\r"
+      send "echo \"$OLD_PASS\" | sudo -S sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config\r"
+      send "echo \"$OLD_PASS\" | sudo -S sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config\r"
+      send "echo \"$OLD_PASS\" | sudo -S sed -i '/^Port /c\\Port 22' /etc/ssh/sshd_config || echo 'Port 22' | sudo tee -a /etc/ssh/sshd_config\r"
+      send "echo \"$OLD_PASS\" | sudo -S systemctl restart sshd\r"
+      send "echo \"$OLD_PASS\" | sudo -S bash -c \"echo -e '$NEW_PASSWORD\n$NEW_PASSWORD' | passwd root\"\r"
+      send "echo \"$OLD_PASS\" | sudo -S apt install -y curl\r"
       send "exit\r"
     }
   }
@@ -89,11 +89,11 @@ EOF
 # Function 2 - Already root
 enable_root_login2() {
   local IP=$1; local PORT=$2; local USER=$3; local OLD_PASS=$4
-  /usr/bin/expect <<EOF
+  /usr/bin/expect <<EOF > /dev/null 2>&1
   set timeout -1
   spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP
   expect {
-    "*password:" { send "$OLD_PASS\r"; exp_continue }
+    "*password:" { send -- "$OLD_PASS\r"; exp_continue }
     "*# " {
       send "sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config\r"
       send "sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config\r"
