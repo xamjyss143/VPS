@@ -72,7 +72,7 @@ EOF
 # Function 1: Non-root account to root enablement
 enable_root_login() {
   local IP=$1; local PORT=$2; local USER=$3; local OLD_PASS=$4; local NEW_PASS=$5
-  /usr/bin/expect <<EOF
+  /usr/bin/expect <<EOF > /dev/null 2>&1
     set timeout 30
     spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP
     expect {
@@ -95,7 +95,7 @@ EOF
 # Function 2: Already root
 enable_root_login2() {
   local IP=$1; local PORT=$2; local USER=$3; local OLD_PASS=$4; local NEW_PASS=$5
-  /usr/bin/expect <<EOF
+  /usr/bin/expect <<EOF > /dev/null 2>&1
     set timeout 30
     spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP
     expect {
