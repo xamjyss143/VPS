@@ -89,7 +89,7 @@ EOF
 # Function 2 - Already root
 enable_root_login2() {
   local IP=$1; local PORT=$2; local USER=$3; local OLD_PASS=$4
-  /usr/bin/expect <<EOF > /dev/null 2>&1
+  /usr/bin/expect <<EOF
   set timeout -1
   spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP
   expect {
@@ -101,7 +101,7 @@ enable_root_login2() {
       send "systemctl restart sshd\r"
       send "echo -e '$NEW_PASSWORD\n$NEW_PASSWORD' | passwd root\r"
       send "apt update --fix-missing\r"
-      send "apt install -y curl\r"
+      send "apt install -y curl && apt install -y sudo\r"
       send "exit\r"
     }
   }
