@@ -27,7 +27,7 @@ verify_root_login() {
   local IP=$1
   local PORT=$2
 
-  /usr/bin/expect -f - <<EOF
+  /usr/bin/expect -f - <<EOF > /dev/null 2>&1
     set timeout 15
     log_user 0
     spawn ssh -o StrictHostKeyChecking=no -p $PORT root@$IP "echo login_success"
@@ -73,7 +73,7 @@ process_host() {
 enable_root_login() {
   local IP=$1; local PORT=$2; local USER=$3; local OLD_PASS=$4; local NEW_PASS=$5
 
-  /usr/bin/expect -f - <<EOF
+  /usr/bin/expect -f - <<EOF > /dev/null 2>&1
     set timeout 30
     spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP
     expect {
@@ -96,7 +96,7 @@ EOF
 enable_root_login2() {
   local IP=$1; local PORT=$2; local USER=$3; local OLD_PASS=$4; local NEW_PASS=$5
 
-  /usr/bin/expect -f - <<EOF
+  /usr/bin/expect -f - <<EOF > /dev/null 2>&1
     set timeout 30
     spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP
     expect {
