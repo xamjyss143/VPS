@@ -46,16 +46,25 @@ process_host() {
   local COUNT=$1
   local LINE=$2
 
+  # Must contain @ and :
+  if [[ "$LINE" != *"@"* || "$LINE" != *":"* ]]; then
+    echo -e "${RED}ERROR: Invalid line format: $LINE${NC}"
+    echo "$COUNT => ERROR: Invalid format in line: $LINE" >> "$ERROR_FILE"
+    return
+  fi
+
   local IP_PORT="${LINE%@*}"
   local USER_PASS="${LINE#*@}"
+
   local IP="${IP_PORT%%:*}"
   local PORT="${IP_PORT##*:}"
   local USER="${USER_PASS%%:*}"
   local OLD_PASS="${USER_PASS#*:}"
 
-  if [[ -z "$PORT" || -z "$USER" || -z "$OLD_PASS" ]]; then
-    echo -e "${RED}ERROR: Invalid format in line: $LINE${NC}"
-    echo "$COUNT => ERROR: Invalid format in line: $LINE" >> "$ERROR_FILE"
+  # Validate fields
+  if [[ -z "$IP" || -z "$PORT" || -z "$USER" || -z "$OLD_PASS" ]]; then
+    echo -e "${RED}ERROR: Missing field in line: $LINE${NC}"
+    echo "$COUNT => ERROR: Missing field in line: $LINE" >> "$ERROR_FILE"
     return
   fi
 
@@ -129,7 +138,7 @@ EOF
 
 # Process each line in parallel
 while IFS= read -r line || [[ -n "$line" ]]; do
-  while [ $(jobs -rp | wc -l) -ge $MAX_CONCURRENT ]; do
+  while [ "$(jobs -rp | wc -l)" -ge "$MAX_CONCURRENT" ]; do
     wait -n
   done
 
