@@ -49,15 +49,26 @@ process_host() {
     PORT="22"
   fi
 
+  # Check root login with new password
   /usr/bin/expect <<EOF > /dev/null 2>&1
   set timeout -1
   log_user 0
-  spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP "echo 'Root login confirmed'"
+  spawn ssh -o StrictHostKeyChecking=no -p $PORT root@$IP "echo 'Root login confirmed'"
   expect {
-    "*password:" { send "${NEW_PASSWORD}\r"; exp_continue }
-    "*Root login confirmed*" { exit 0 }
+    "*assword:" {
+      send -- "${NEW_PASSWORD}\r"
+      exp_continue
+    }
+    "Root login confirmed" {
+      exit 0
+    }
+    timeout {
+      exit 1
+    }
+    eof {
+      exit 1
+    }
   }
-  expect eof
 EOF
 
   if [[ $? -eq 0 ]]; then
@@ -77,16 +88,19 @@ enable_root_login() {
   log_user 0
   spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP
   expect {
-    "*password:" { send "${OLD_PASS}\r"; exp_continue }
-    "*$ " {
-      send "echo '${OLD_PASS}' | sudo -S sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config\r"
-      send "echo '${OLD_PASS}' | sudo -S sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config\r"
-      send "echo '${OLD_PASS}' | sudo -S sed -i '/^Port /c\\Port 22' /etc/ssh/sshd_config || echo 'Port 22' | sudo tee -a /etc/ssh/sshd_config\r"
-      send "echo '${OLD_PASS}' | sudo -S systemctl restart sshd\r"
-      send "echo '${OLD_PASS}' | sudo -S bash -c \"echo -e '${NEW_PASSWORD}\\n${NEW_PASSWORD}' | passwd root\"\r"
-      send "echo '${OLD_PASS}' | sudo -S apt update --fix-missing\r"
-      send "echo '${OLD_PASS}' | sudo -S apt install -y curl\r"
-      send "exit\r"
+    "*assword:" {
+      send -- "${OLD_PASS}\r"
+      exp_continue
+    }
+    "*\$ " {
+      send -- "echo '${OLD_PASS}' | sudo -S sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config\r"
+      send -- "echo '${OLD_PASS}' | sudo -S sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config\r"
+      send -- "echo '${OLD_PASS}' | sudo -S sed -i '/^Port /c\\Port 22' /etc/ssh/sshd_config || echo 'Port 22' | sudo tee -a /etc/ssh/sshd_config\r"
+      send -- "echo '${OLD_PASS}' | sudo -S systemctl restart sshd\r"
+      send -- "echo '${OLD_PASS}' | sudo -S bash -c \"echo -e '${NEW_PASSWORD}\\n${NEW_PASSWORD}' | passwd root\"\r"
+      send -- "echo '${OLD_PASS}' | sudo -S apt update --fix-missing\r"
+      send -- "echo '${OLD_PASS}' | sudo -S apt install -y curl\r"
+      send -- "exit\r"
     }
   }
   expect eof
@@ -101,16 +115,19 @@ enable_root_login2() {
   log_user 0
   spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP
   expect {
-    "*password:" { send "${OLD_PASS}\r"; exp_continue }
+    "*assword:" {
+      send -- "${OLD_PASS}\r"
+      exp_continue
+    }
     "*# " {
-      send "sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config\r"
-      send "sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config\r"
-      send "sed -i '/^Port /c\\Port 22' /etc/ssh/sshd_config || echo 'Port 22' >> /etc/ssh/sshd_config\r"
-      send "systemctl restart sshd\r"
-      send "echo -e '${NEW_PASSWORD}\\n${NEW_PASSWORD}' | passwd root\r"
-      send "apt update --fix-missing\r"
-      send "apt install -y curl\r"
-      send "exit\r"
+      send -- "sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config\r"
+      send -- "sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config\r"
+      send -- "sed -i '/^Port /c\\Port 22' /etc/ssh/sshd_config || echo 'Port 22' >> /etc/ssh/sshd_config\r"
+      send -- "systemctl restart sshd\r"
+      send -- "echo -e '${NEW_PASSWORD}\\n${NEW_PASSWORD}' | passwd root\r"
+      send -- "apt update --fix-missing\r"
+      send -- "apt install -y curl\r"
+      send -- "exit\r"
     }
   }
   expect eof
