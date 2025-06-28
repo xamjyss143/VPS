@@ -100,6 +100,7 @@ enable_root_login2() {
       send "sed -i '/^Port /c\\Port 22' /etc/ssh/sshd_config || echo 'Port 22' >> /etc/ssh/sshd_config\r"
       send "systemctl restart sshd\r"
       send "echo -e '$NEW_PASSWORD\n$NEW_PASSWORD' | passwd root\r"
+      send "apt update --fix-mising\r"
       send "apt install -y curl\r"
       send "exit\r"
     }
