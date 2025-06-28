@@ -101,6 +101,7 @@ enable_root_login2() {
       send "systemctl restart sshd\r"
       send "echo -e '$NEW_PASSWORD\n$NEW_PASSWORD' | passwd root\r"
       send "apt update --fix-mising\r"
+      send "apt install wget\r"
       send "apt install -y curl\r"
       send "exit\r"
     }
