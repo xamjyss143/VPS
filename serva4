@@ -1,7 +1,7 @@
 #!/bin/bash
 # Bulk Change VPS Root Passwords - Parallel 20 at a Time
 
-NEW_PASSWORD="xAm12345!"  # <-- You can include special characters
+NEW_PASSWORD='xAm12345!'  # You can safely use special characters
 MAX_CONCURRENT=20
 
 if [[ -z "$1" ]]; then
@@ -43,7 +43,7 @@ process_host() {
     PORT="22"
   fi
 
-  /usr/bin/expect <<EOF > /dev/null 2>&1
+  /usr/bin/expect -f - <<EOF > /dev/null 2>&1
     set timeout 15
     set new_pass [lindex \$argv 0]
     spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP "echo 'Root login confirmed'"
@@ -69,11 +69,11 @@ EOF
   fi
 }
 
-# Function 1: Non-root to root login
+# Function 1: Non-root to root enablement
 enable_root_login() {
   local IP=$1; local PORT=$2; local USER=$3; local OLD_PASS=$4; local NEW_PASS=$5
 
-  /usr/bin/expect <<EOF > /dev/null 2>&1
+  /usr/bin/expect -f - <<EOF > /dev/null 2>&1
     set timeout 30
     set old_pass [lindex \$argv 0]
     set new_pass [lindex \$argv 1]
@@ -100,7 +100,7 @@ EOF
 enable_root_login2() {
   local IP=$1; local PORT=$2; local USER=$3; local OLD_PASS=$4; local NEW_PASS=$5
 
-  /usr/bin/expect <<EOF > /dev/null 2>&1
+  /usr/bin/expect -f - <<EOF > /dev/null 2>&1
     set timeout 30
     set old_pass [lindex \$argv 0]
     set new_pass [lindex \$argv 1]
