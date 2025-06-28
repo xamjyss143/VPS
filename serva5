@@ -1,7 +1,7 @@
 #!/bin/bash
 # Bulk Change VPS Root Passwords - Parallel 20 at a Time
 
-NEW_PASSWORD='xAm12345!'  # You can safely use special characters
+NEW_PASSWORD='xAm12345!'  # Use any complex password with special characters
 MAX_CONCURRENT=20
 
 if [[ -z "$1" ]]; then
@@ -22,16 +22,17 @@ NC='\033[0m'
 
 COUNT=1
 
-# Function to manage each host
+# Function to handle each host
 process_host() {
   local COUNT=$1
   local LINE=$2
-  local IP_PORT=$(echo "$LINE" | cut -d'@' -f1)
-  local USER_PASS=$(echo "$LINE" | cut -d'@' -f2)
-  local IP=$(echo "$IP_PORT" | cut -d':' -f1)
-  local PORT=$(echo "$IP_PORT" | cut -d':' -f2)
-  local USER=$(echo "$USER_PASS" | cut -d':' -f1)
-  local OLD_PASS=$(echo "$USER_PASS" | cut -d':' -f2)
+
+  local IP_PORT="${LINE%@*}"
+  local USER_PASS="${LINE#*@}"
+  local IP="${IP_PORT%%:*}"
+  local PORT="${IP_PORT##*:}"
+  local USER="${USER_PASS%%:*}"
+  local OLD_PASS="${USER_PASS#*:}"
 
   if [[ "$USER" != "root" ]]; then
     enable_root_login "$IP" "$PORT" "$USER" "$OLD_PASS" "$NEW_PASSWORD"
@@ -39,8 +40,6 @@ process_host() {
     PORT="22"
   else
     enable_root_login2 "$IP" "$PORT" "$USER" "$OLD_PASS" "$NEW_PASSWORD"
-    USER="root"
-    PORT="22"
   fi
 
   /usr/bin/expect -f - <<EOF > /dev/null 2>&1
@@ -69,7 +68,7 @@ EOF
   fi
 }
 
-# Function 1: Non-root to root enablement
+# Function 1: Non-root to root setup
 enable_root_login() {
   local IP=$1; local PORT=$2; local USER=$3; local OLD_PASS=$4; local NEW_PASS=$5
 
