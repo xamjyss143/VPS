@@ -1,12 +1,10 @@
 #!/bin/bash
 # Bulk Change VPS Root Passwords - Parallel 20 at a Time
 
-set -euo pipefail
-
-NEW_PASSWORD='xAm12345'
+NEW_PASSWORD='xAm12345'  # Use complex passwords safely
 MAX_CONCURRENT=20
 
-if [[ -z "${1:-}" ]]; then
+if [[ -z "$1" ]]; then
   echo "Usage: $0 <input_file>"
   exit 1
 fi
@@ -24,84 +22,28 @@ NC='\033[0m'
 
 COUNT=1
 
-# Function for users that are not root
-enable_root_login() {
-  local IP=$1 PORT=$2 USER=$3 OLD_PASS=$4 NEW_PASS=$5
-
-  /usr/bin/expect -f - <<EOF
-    set timeout 30
-    spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP
-    expect {
-      "*assword:" { send "$OLD_PASS\r"; exp_continue }
-      "*$ " {
-        send "echo '$OLD_PASS' | sudo -S sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config\r"
-        send "echo '$OLD_PASS' | sudo -S sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config\r"
-        send "echo '$OLD_PASS' | sudo -S sed -i '/^Port /c\\Port 22' /etc/ssh/sshd_config || echo 'Port 22' | sudo tee -a /etc/ssh/sshd_config\r"
-        send "echo '$OLD_PASS' | sudo -S systemctl restart sshd\r"
-        send "echo '$OLD_PASS' | sudo -S bash -c \"echo -e '$NEW_PASS\n$NEW_PASS' | passwd root\"\r"
-        send "echo '$OLD_PASS' | sudo -S apt install -y curl sudo\r"
-        send "exit\r"
-      }
-      timeout { exit 1 }
-    }
-    expect eof
-EOF
-}
-
-# Function for root users
-enable_root_login2() {
-  local IP=$1 PORT=$2 USER=$3 OLD_PASS=$4 NEW_PASS=$5
-
-  /usr/bin/expect -f - <<EOF
-    set timeout 30
-    spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP
-    expect {
-      "*assword:" { send "$OLD_PASS\r"; exp_continue }
-      "*# " {
-        send "sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config\r"
-        send "sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config\r"
-        send "sed -i '/^Port /c\\Port 22' /etc/ssh/sshd_config || echo 'Port 22' >> /etc/ssh/sshd_config\r"
-        send "systemctl restart sshd\r"
-        send "echo -e '$NEW_PASS\n$NEW_PASS' | passwd root\r"
-        send "apt update --fix-missing -y\r"
-        send "apt install -y curl sudo\r"
-        send "exit\r"
-      }
-      timeout { exit 1 }
-    }
-    expect eof
-EOF
-}
-
-# Verifies new password works for root login
+# Function: Check root login works with new password
 verify_root_login() {
-  local IP=$1 PORT=$2
+  local IP=$1
+  local PORT=$2
 
   /usr/bin/expect -f - <<EOF
     set timeout 15
     log_user 0
     spawn ssh -o StrictHostKeyChecking=no -p $PORT root@$IP "echo login_success"
     expect {
-      "*assword:" {
-        send "$NEW_PASSWORD\r"
-        exp_continue
-      }
-      "login_success" {
-        exit 0
-      }
-      timeout {
-        exit 1
-      }
-      eof {
-        exit 1
-      }
+      "*assword:" { send "$NEW_PASSWORD\r"; exp_continue }
+      "login_success" { exit 0 }
+      timeout { exit 1 }
+      eof { exit 1 }
     }
 EOF
 }
 
-# Main handler
+# Main handler for each server
 process_host() {
-  local COUNT=$1 LINE=$2
+  local COUNT=$1
+  local LINE=$2
 
   local IP_PORT="${LINE%@*}"
   local USER_PASS="${LINE#*@}"
@@ -127,7 +69,54 @@ process_host() {
   fi
 }
 
-# Parallel processing loop
+# Function: Convert non-root to root
+enable_root_login() {
+  local IP=$1; local PORT=$2; local USER=$3; local OLD_PASS=$4; local NEW_PASS=$5
+
+  /usr/bin/expect -f - <<EOF
+    set timeout 30
+    spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP
+    expect {
+      "*assword:" { send "$OLD_PASS\r"; exp_continue }
+      "*$ " {
+        send "echo '$OLD_PASS' | sudo -S sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config\r"
+        send "echo '$OLD_PASS' | sudo -S sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config\r"
+        send "echo '$OLD_PASS' | sudo -S sed -i '/^Port /c\\Port 22' /etc/ssh/sshd_config || echo 'Port 22' | sudo tee -a /etc/ssh/sshd_config\r"
+        send "echo '$OLD_PASS' | sudo -S systemctl restart sshd\r"
+        send "echo '$OLD_PASS' | sudo -S bash -c \"echo -e '$NEW_PASS\\n$NEW_PASS' | passwd root\"\r"
+        send "exit\r"
+      }
+      timeout { exit 1 }
+    }
+    expect eof
+EOF
+}
+
+# Function: Already root
+enable_root_login2() {
+  local IP=$1; local PORT=$2; local USER=$3; local OLD_PASS=$4; local NEW_PASS=$5
+
+  /usr/bin/expect -f - <<EOF
+    set timeout 30
+    spawn ssh -o StrictHostKeyChecking=no -p $PORT $USER@$IP
+    expect {
+      "*assword:" { send "$OLD_PASS\r"; exp_continue }
+      "*# " {
+        send "sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config\r"
+        send "sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config\r"
+        send "sed -i '/^Port /c\\Port 22' /etc/ssh/sshd_config || echo 'Port 22' >> /etc/ssh/sshd_config\r"
+        send "systemctl restart sshd\r"
+        send "echo -e '$NEW_PASS\\n$NEW_PASS' | passwd root\r"
+        send "apt install -y curl sudo\r"
+        send "exit\r"
+      }
+      timeout { exit 1 }
+    }
+    expect eof
+EOF
+}
+
+# Process each line in parallel
 while IFS= read -r line || [[ -n "$line" ]]; do
   while (( $(jobs -rp | wc -l) >= MAX_CONCURRENT )); do
     wait -n
