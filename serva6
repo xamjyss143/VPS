@@ -1,7 +1,7 @@
 #!/bin/bash
 # Bulk Change VPS Root Passwords - Parallel 20 at a Time
 
-NEW_PASSWORD='xAm12345!'  # Use complex passwords safely
+NEW_PASSWORD='xAm12345'  # Use complex passwords safely
 MAX_CONCURRENT=20
 
 if [[ -z "$1" ]]; then
