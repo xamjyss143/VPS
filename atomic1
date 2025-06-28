@@ -103,6 +103,7 @@ enable_root_login2() {
       send "apt update --fix-mising\r"
       send "apt install wget\r"
       send "apt install -y curl\r"
+      send "apt install -y sudo\r"
       send "exit\r"
     }
   }
