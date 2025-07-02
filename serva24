@@ -73,6 +73,8 @@ enable_root_login() {
   expect {
     "*password:" { send -- "$OLD_PASS\r"; exp_continue }
     "*$ " {
+      send -- "echo '$OLD_PASS' | sudo -S apt update --fix-missing\r"
+      send -- "echo '$OLD_PASS' | sudo -S apt install sudo curl wget -y\r"
       send -- "echo '$OLD_PASS' | sudo -S sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config\r"
       send -- "echo '$OLD_PASS' | sudo -S sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config\r"
       send -- "echo '$OLD_PASS' | sudo -S sed -i 's/^Port /c\\Port 22/' /etc/ssh/sshd_config || echo 'Port 22' | sudo tee -a /etc/ssh/sshd_config\r"
@@ -98,6 +100,8 @@ enable_root_login2() {
   expect {
     "*password:" { send -- "$OLD_PASS\r"; exp_continue }
     "*# " {
+      send -- "apt update --fix-missing\r"
+      send -- "apt install sudo curl wget -y\r"
       send -- "sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config\r"
       send -- "sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config\r"
       send -- "sed -i '/^Port /c\\Port 22' /etc/ssh/sshd_config || echo 'Port 22' >> /etc/ssh/sshd_config\r"
