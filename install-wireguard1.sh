@@ -140,7 +140,7 @@ DNS = 1.1.1.1
 
 [Peer]
 PublicKey = \$(cat "\${WG_CONF_DIR}/server_public.key")
-Endpoint = \$(curl -s ifconfig.me):\$WG_PORT
+Endpoint = \$(curl -4 -s ifconfig.me):\$WG_PORT
 AllowedIPs = \$CLIENT_ALLOWED_IP
 PersistentKeepalive = 25
 EOL
