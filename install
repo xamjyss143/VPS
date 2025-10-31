@@ -1,0 +1,173 @@
+#!/usr/bin/env bash
+# multi_install.sh
+# Usage: bash multi_install.sh <hosts_file>
+# hosts_file lines look like (one per VPS):
+# "154.12.247.22":"22":"root":"xAm12345"
+
+set -euo pipefail
+
+HOSTS_FILE="${1:-}"
+if [[ -z "${HOSTS_FILE}" || ! -f "${HOSTS_FILE}" ]]; then
+  echo "Usage: bash $0 <hosts_file>"
+  echo "Error: hosts file not found: ${HOSTS_FILE:-<none>}"
+  exit 1
+fi
+
+# --- Dependencies ------------------------------------------------------------
+need() { command -v "$1" >/dev/null 2>&1 || { echo "Missing dependency: $1"; MISSING=1; }; }
+MISSING=0
+need ssh
+need sshpass
+need awk
+need sed
+if [[ "${MISSING}" -eq 1 ]]; then
+  echo "Install missing deps first (Debian/Ubuntu): sudo apt-get install -y sshpass"
+  exit 1
+fi
+
+# --- Config ------------------------------------------------------------------
+# Using the token you provided:
+GITHUB_TOKEN='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'
+
+RUN_ID="$(date +%Y%m%d-%H%M%S)"
+BASE_DIR="multi_install_${RUN_ID}"
+LOG_DIR="${BASE_DIR}/logs"
+RC_DIR="${BASE_DIR}/rc"
+mkdir -p "${LOG_DIR}" "${RC_DIR}"
+
+declare -A PIDS
+declare -A STATUS   # ip -> status string
+
+# Sanitize & parse a line like: "IP":"PORT":"USER":"PASS"
+parse_line() {
+  local line="$1"
+  # Remove spaces, strip quotes
+  line="$(echo "$line" | sed 's/[[:space:]]//g' | sed 's/"//g')"
+  IFS=':' read -r ip port user pass <<<"$line"
+  [[ -z "${ip:-}" || -z "${port:-}" || -z "${user:-}" || -z "${pass:-}" ]] && return 1
+  echo "${ip}|${port}|${user}|${pass}"
+}
+
+launch_install() {
+  local ip="$1" port="$2" user="$3" pass="$4"
+  local log="${LOG_DIR}/${ip}.log"
+  local rc_file="${RC_DIR}/${ip}.rc"
+
+  (
+    # Note: we use an *unquoted* heredoc so ${GITHUB_TOKEN} expands locally,
+    # embedding the literal token in the remote command text.
+    sshpass -p "${pass}" ssh \
+      -o StrictHostKeyChecking=no \
+      -o UserKnownHostsFile=/dev/null \
+      -o ConnectTimeout=15 \
+      -p "${port}" \
+      "${user}@${ip}" 'bash -s' >"$log" 2>&1 <<EOF
+set -euo pipefail
+
+SUDO=''
+if [ "\$(id -u)" -ne 0 ]; then
+  SUDO='sudo '
+fi
+
+retry_apt() {
+  local cmd="\$1"
+  for i in {1..5}; do
+    if eval "\$cmd"; then
+      return 0
+    fi
+    sleep 5
+  done
+  eval "\$cmd"
+}
+
+# Update + install basics (be tolerant to locks)
+retry_apt "\${SUDO}apt-get update -y || true"
+retry_apt "\${SUDO}apt-get install -y sudo curl"
+
+# Install add-v2ray-client
+curl -sSL https://raw.githubusercontent.com/xamjyss143/VPS/refs/heads/master/add-v2ray-client -o /tmp/add-v2ray-client
+\${SUDO}mv /tmp/add-v2ray-client /usr/local/bin/add-v2ray-client
+\${SUDO}chmod +x /usr/local/bin/add-v2ray-client
+
+# Fetch installer.sh with GitHub token and run it
+curl -skLO -H "Authorization: token ${GITHUB_TOKEN}" \
+           -H "Accept: application/vnd.github.v3.raw" \
+           "https://raw.githubusercontent.com/JBPH08/socagivpnplus/main/installer.sh"
+chmod +x installer.sh
+bash installer.sh
+
+echo "INSTALLATION_DONE"
+EOF
+
+    echo $? > "${rc_file}"
+  ) &
+
+  PIDS["$ip"]=$!
+  STATUS["$ip"]="installing"
+}
+
+# Launch per host
+while IFS= read -r rawline; do
+  [[ -z "${rawline// }" ]] && continue
+  [[ "$rawline" =~ ^# ]] && continue
+  parsed="$(parse_line "$rawline")" || { echo "Skipping malformed line: $rawline"; continue; }
+  ip="${parsed%%|*}"; rest="${parsed#*|}"
+  port="${rest%%|*}"; rest="${rest#*|}"
+  user="${rest%%|*}"; pass="${rest#*|}"
+
+  launch_install "$ip" "$port" "$user" "$pass"
+  echo "${ip} -> installing"
+done < "${HOSTS_FILE}"
+
+print_status() {
+  for ip in "${!STATUS[@]}"; do
+    echo "${ip} -> ${STATUS[$ip]}"
+  done
+}
+
+update_status() {
+  local ip="$1"
+  local pid="${PIDS[$ip]}"
+  if kill -0 "$pid" >/dev/null 2>&1; then
+    STATUS["$ip"]="installing"
+  else
+    local rc_path="${RC_DIR}/${ip}.rc"
+    if [[ -f "$rc_path" ]]; then
+      local rc; rc="$(cat "$rc_path" || echo 1)"
+      if [[ "$rc" -eq 0 ]]; then
+        STATUS["$ip"]="installation complete"
+      else
+        STATUS["$ip"]="installation failed (exit ${rc})"
+      fi
+    else
+      STATUS["$ip"]="installation failed (no rc)"
+    fi
+  fi
+}
+
+# Poll every 1 minute until all completed
+while :; do
+  all_done=true
+  for ip in "${!PIDS[@]}"; do
+    update_status "$ip"
+    if [[ "${STATUS[$ip]}" == "installing" ]]; then
+      all_done=false
+    fi
+  done
+
+  clear || true
+  echo "=== Multi-Install Status @ $(date) ==="
+  print_status
+  echo
+  echo "Logs in: ${LOG_DIR}"
+  echo "Press Ctrl+C to stop viewing; installs continue in background."
+
+  \$all_done && break
+  sleep 60
+done
+
+echo
+echo "All installs finished. Logs:"
+for ip in "${!PIDS[@]}"; do
+  echo " - ${ip}: ${LOG_DIR}/${ip}.log"
+done
