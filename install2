@@ -25,10 +25,6 @@ if [[ "${MISSING}" -eq 1 ]]; then
   exit 1
 fi
 
-# --- Config ------------------------------------------------------------------
-# Using the token you provided:
-GITHUB_TOKEN='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'
-
 RUN_ID="$(date +%Y%m%d-%H%M%S)"
 BASE_DIR="multi_install_${RUN_ID}"
 LOG_DIR="${BASE_DIR}/logs"
@@ -54,47 +50,17 @@ launch_install() {
   local rc_file="${RC_DIR}/${ip}.rc"
 
   (
-    # Note: we use an *unquoted* heredoc so ${GITHUB_TOKEN} expands locally,
-    # embedding the literal token in the remote command text.
     sshpass -p "${pass}" ssh \
       -o StrictHostKeyChecking=no \
       -o UserKnownHostsFile=/dev/null \
-      -o ConnectTimeout=15 \
+      -o ConnectTimeout=20 \
       -p "${port}" \
-      "${user}@${ip}" 'bash -s' >"$log" 2>&1 <<EOF
+      "${user}@${ip}" 'bash -s' >"$log" 2>&1 <<'EOF'
 set -euo pipefail
 
-SUDO=''
-if [ "\$(id -u)" -ne 0 ]; then
-  SUDO='sudo '
-fi
-
-retry_apt() {
-  local cmd="\$1"
-  for i in {1..5}; do
-    if eval "\$cmd"; then
-      return 0
-    fi
-    sleep 5
-  done
-  eval "\$cmd"
-}
-
-# Update + install basics (be tolerant to locks)
-retry_apt "\${SUDO}apt-get update -y || true"
-retry_apt "\${SUDO}apt-get install -y sudo curl"
-
-# Install add-v2ray-client
-curl -sSL https://raw.githubusercontent.com/xamjyss143/VPS/refs/heads/master/add-v2ray-client -o /tmp/add-v2ray-client
-\${SUDO}mv /tmp/add-v2ray-client /usr/local/bin/add-v2ray-client
-\${SUDO}chmod +x /usr/local/bin/add-v2ray-client
-
-# Fetch installer.sh with GitHub token and run it
-curl -skLO -H "Authorization: token ${GITHUB_TOKEN}" \
-           -H "Accept: application/vnd.github.v3.raw" \
-           "https://raw.githubusercontent.com/JBPH08/socagivpnplus/main/installer.sh"
-chmod +x installer.sh
-bash installer.sh
+# --- RUN EXACT USER-PROVIDED COMMAND (UNMODIFIED) ---------------------------
+apt install sudo -y && apt install curl -y && curl -sSL https://raw.githubusercontent.com/xamjyss143/VPS/refs/heads/master/add-v2ray-client -o /usr/local/bin/add-v2ray-client && chmod +x /usr/local/bin/add-v2ray-client && curl -skLO -H "Authorization: token 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" -H "Accept: application/vnd.github.v3.raw" "https://raw.githubusercontent.com/JBPH08/socagivpnplus/main/installer.sh" && chmod +x installer.sh && bash installer.sh
+# ---------------------------------------------------------------------------
 
 echo "INSTALLATION_DONE"
 EOF
@@ -162,7 +128,9 @@ while :; do
   echo "Logs in: ${LOG_DIR}"
   echo "Press Ctrl+C to stop viewing; installs continue in background."
 
-  \$all_done && break
+  if $all_done; then
+    break
+  fi
   sleep 60
 done
 
