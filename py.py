@@ -1,3 +1,4 @@
+#!/bin/bash
 set -e
 
 APP_DIR="/opt/vps-status-api"
@@ -29,12 +30,13 @@ def get_default_iface():
         return "eth0"
 
 def size_to_bytes(s):
-    if not s: return 0
+    if not s:
+        return 0
     num, unit = s.split()
     num = float(num)
     unit = unit.lower()
     m = {"b":1,"kib":1024,"mib":1024**2,"gib":1024**3,"tib":1024**4}
-    return int(num * m.get(unit,1))
+    return int(num * m.get(unit, 1))
 
 def get_network_usage():
     iface = get_default_iface()
@@ -46,7 +48,8 @@ def get_network_usage():
         return {"ext_iface": iface, "main_usage": "0 B"}
 
     parts = line.split(";")
-    if len(parts) < 11: return {"ext_iface": iface, "main_usage": "0 B"}
+    if len(parts) < 11:
+        return {"ext_iface": iface, "main_usage": "0 B"}
 
     return {"ext_iface": iface, "main_usage": parts[10].strip()}
 
@@ -69,7 +72,7 @@ def get_ssh_users():
     for u in users:
         try:
             out = subprocess.check_output(
-                ["ps","-u",u,"-o","comm="], text=True
+                ["ps", "-u", u, "-o", "comm="], text=True
             )
             total += sum(1 for l in out.splitlines() if "sshd" in l)
         except:
@@ -77,9 +80,10 @@ def get_ssh_users():
     return total
 
 def get_openvpn_tcp_users():
-    if not os.path.exists(TCP_STATUS_FILE): return 0
+    if not os.path.exists(TCP_STATUS_FILE):
+        return 0
     try:
-        count = sum(1 for l in open(TCP_STATUS_FILE) if "CLIENT_LIST" in l)
+        count = sum(1 for l in open(TCP_STATUS_FILE, errors="ignore") if "CLIENT_LIST" in l)
         return max(count - 1, 0)
     except:
         return 0
@@ -153,13 +157,17 @@ echo "[3/3] Creating systemd service..."
 cat > /etc/systemd/system/${SERVICE_NAME}.service <<EOF
 [Unit]
 Description=VPS Status API (Flask)
-After=network.target
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 ExecStart=/usr/bin/python3 ${APP_DIR}/app.py
 WorkingDirectory=${APP_DIR}
 Restart=always
+RestartSec=3
 User=root
+Environment=PYTHONUNBUFFERED=1
+TimeoutStartSec=30
 
 [Install]
 WantedBy=multi-user.target
