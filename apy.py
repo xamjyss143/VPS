@@ -355,7 +355,7 @@ def get_services_status():
 # ============================================================
 def get_uuid_and_key():
     uuid = read_first_line("/etc/xray/uuid")
-    key  = read_first_line("/etc/xray/key")
+    key  = read_first_line("/etc/JuanScript/server.pub")
     return uuid, key
 
 # ============================================================
