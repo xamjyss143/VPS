@@ -123,17 +123,13 @@ def get_openvpn_tcp_users():
 # ============================================================
 def get_hysteria_users():
     """
-    Parse journalctl -u udp.service and estimate number of currently
-    active Hysteria users by tracking streams:
+    Count actual connected Hysteria UDP users by parsing ONLY:
+      - "client connected"     => add session
+      - "client disconnected"  => remove session
 
-      - "TCP request"  => open stream (+1 for that ip:port)
-      - "TCP EOF"      => close stream (-1, floor at 0)
-      - "TCP error"    => close stream (-1, floor at 0)
-      - "Client disconnected" => zero all streams from that IP
-
-    Returns:
-        int: count of active ip:port sessions (so 2 devices behind
-             same IP but different ports = 2 users).
+    Session key is ip:port so:
+      - 2 devices behind same IP (different ports) = 2 users
+      - when one disconnects, the other stays counted
     """
     try:
         proc = subprocess.Popen(
@@ -145,43 +141,33 @@ def get_hysteria_users():
     except Exception:
         return 0
 
-    conn = {}  # "ip:port" -> active stream count
+    sessions = set()
     pattern = re.compile(r"\[src:([0-9a-fA-F\.:]+):(\d+)\]")
 
     if not proc.stdout:
         return 0
 
     for line in proc.stdout:
+        low = line.lower()
+        # Only care about real session connect/disconnect events
+        if "client connected" not in low and "client disconnected" not in low:
+            continue
+
         m = pattern.search(line)
         if not m:
             continue
 
         ip = m.group(1)
         port = m.group(2)
-        ipport = f"{ip}:{port}"
+        key = f"{ip}:{port}"
 
-        # TCP REQUEST = open (increase active stream)
-        if "TCP request" in line:
-            conn[ipport] = conn.get(ipport, 0) + 1
+        if "client connected" in low:
+            sessions.add(key)
 
-        # TCP EOF or TCP error = close (decrease active stream)
-        if "TCP EOF" in line or "TCP error" in line:
-            if conn.get(ipport, 0) > 0:
-                conn[ipport] -= 1
+        if "client disconnected" in low:
+            sessions.discard(key)
 
-        # "Client disconnected" = kill all streams from same IP
-        if "Client disconnected" in line:
-            for k in list(conn.keys()):
-                if k.startswith(ip + ":"):
-                    conn[k] = 0
-
-    # ==== CHANGED PART: count ip:port sessions, not just IPs ====
-    active_sessions = 0
-    for k, v in conn.items():
-        if v > 0:
-            active_sessions += 1
-    return active_sessions
-    # ===========================================================
+    return len(sessions)
 
 # ============================================================
 #  META + SPECS (for infoPage)
