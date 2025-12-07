@@ -43,21 +43,6 @@ def get_default_iface():
     out = run_cmd("ip -4 route ls | grep default | grep -Po '(?<=dev )\\S+' | head -1")
     return out if out else "eth0"
 
-def size_to_bytes(s):
-    if not s:
-        return 0
-    parts = s.split()
-    if len(parts) != 2:
-        return 0
-    num, unit = parts
-    try:
-        num = float(num)
-    except Exception:
-        return 0
-    unit = unit.lower()
-    m = {"b": 1, "kib": 1024, "mib": 1024**2, "gib": 1024**3, "tib": 1024**4}
-    return int(num * m.get(unit, 1))
-
 def get_network_usage():
     iface = get_default_iface()
     try:
@@ -71,7 +56,6 @@ def get_network_usage():
     if len(parts) < 11:
         return {"ext_iface": iface, "main_usage": "0 B"}
 
-    # parts[10] is monthly total e.g. "151.54 GiB"
     month_total = parts[10].strip()
     return {
         "ext_iface": iface,
@@ -119,20 +103,12 @@ def get_openvpn_tcp_users():
         return 0
 
 # ============================================================
-#  HYSTERIA (udp.service) ACTIVE USERS
+#  HYSTERIA (udp.service) ACTIVE DEVICE COUNT
 # ============================================================
 def get_hysteria_users():
     """
-    Parse journalctl -u udp.service and estimate number of currently
-    active Hysteria users by tracking streams:
-
-      - "TCP request"  => open stream (+1 for that ip:port)
-      - "TCP EOF"      => close stream (-1, floor at 0)
-      - "TCP error"    => close stream (-1, floor at 0)
-      - "Client disconnected" => zero all streams from that IP
-
-    Returns:
-        int: count of unique IPs with conn[ip:port] > 0
+    Tracks active device connections based on ip:port.
+    Even if 2 devices share same IP, each unique ip:port counts as 1 device.
     """
     try:
         proc = subprocess.Popen(
@@ -144,7 +120,7 @@ def get_hysteria_users():
     except Exception:
         return 0
 
-    conn = {}  # "ip:port" -> active stream count
+    conn = {}  # ip:port -> active stream count
     pattern = re.compile(r"\[src:([0-9a-fA-F\.:]+):(\d+)\]")
 
     if not proc.stdout:
@@ -159,46 +135,37 @@ def get_hysteria_users():
         port = m.group(2)
         ipport = f"{ip}:{port}"
 
-        # TCP REQUEST = open (increase active stream)
+        # TCP request opens stream
         if "TCP request" in line:
             conn[ipport] = conn.get(ipport, 0) + 1
 
-        # TCP EOF or TCP error = close (decrease active stream)
+        # TCP EOF / error closes stream
         if "TCP EOF" in line or "TCP error" in line:
             if conn.get(ipport, 0) > 0:
                 conn[ipport] -= 1
 
-        # "Client disconnected" = kill all streams from same IP
+        # Client disconnected → clear all streams for that IP
         if "Client disconnected" in line:
             for k in list(conn.keys()):
                 if k.startswith(ip + ":"):
                     conn[k] = 0
 
-    # Collect active IPs
-    active_ips = set()
-    for k, v in conn.items():
-        if v > 0:
-            active_ips.add(k.split(":")[0])
-
-    return len(active_ips)
+    # 🔥 Count DEVICE connections = each ip:port with >0 streams
+    active_devices = sum(1 for v in conn.values() if v > 0)
+    return active_devices
 
 # ============================================================
 #  META + SPECS (for infoPage)
 # ============================================================
 def get_meta_and_specs():
-    # --- META ---
-    host = run_cmd("hostname")
-    if not host:
-        host = run_cmd("uname -n")
+    host = run_cmd("hostname") or run_cmd("uname -n")
 
-    # OS pretty name
     pretty_os = ""
     try:
         with open("/etc/os-release", "r", errors="ignore") as f:
             for line in f:
                 if line.startswith("PRETTY_NAME="):
-                    val = line.split("=", 1)[1].strip()
-                    pretty_os = val.strip('"').strip("'")
+                    pretty_os = line.split("=", 1)[1].strip().strip('"').strip("'")
                     break
     except Exception:
         pass
@@ -216,10 +183,9 @@ def get_meta_and_specs():
                     break
     except Exception:
         pass
+
     if not cpu_model:
-        # fallback to lscpu output
-        out = run_cmd("lscpu | awk -F: '/Model name/ {print $2; exit}'")
-        cpu_model = out.strip()
+        cpu_model = run_cmd("lscpu | awk -F: '/Model name/ {print $2; exit}'").strip()
 
     meta = {
         "host": host or "—",
@@ -228,104 +194,67 @@ def get_meta_and_specs():
         "cpu": cpu_model or "—",
     }
 
-    # --- SPECS / DISK ---
-    disk_total_bytes = disk_used_bytes = disk_free_bytes = 0
-    disk_total_h = disk_used_h = disk_free_h = "—"
+    # Disk
+    disk_total = disk_used = disk_free = "—"
+    disk_num = {"total_gb": 0, "used_gb": 0, "free_gb": 0}
 
-    df_bytes = run_cmd("df -B1 / 2>/dev/null | awk 'NR==2{print $2\"|\"$3\"|\"$4}'")
-    if df_bytes:
-        parts = df_bytes.split("|")
+    df_h = run_cmd("df -h / | awk 'NR==2{print $2\"|\"$3\"|\"$4}'")
+    if df_h:
+        parts = df_h.split("|")
         if len(parts) >= 3:
+            disk_total, disk_used, disk_free = parts
+
+    df_b = run_cmd("df -B1 / | awk 'NR==2{print $2\"|\"$3\"|\"$4}'")
+    if df_b:
+        p = df_b.split("|")
+        if len(p) >= 3:
             try:
-                disk_total_bytes = int(parts[0])
-                disk_used_bytes  = int(parts[1])
-                disk_free_bytes  = int(parts[2])
-            except Exception:
+                disk_num = {
+                    "total_gb": round(int(p[0]) / 1024**3),
+                    "used_gb":  round(int(p[1]) / 1024**3),
+                    "free_gb":  round(int(p[2]) / 1024**3),
+                }
+            except:
                 pass
 
-    df_h = run_cmd("df -h / 2>/dev/null | awk 'NR==2{print $2\"|\"$3\"|\"$4}'")
-    if df_h:
-        parts_h = df_h.split("|")
-        if len(parts_h) >= 3:
-            disk_total_h = parts_h[0] or "—"
-            disk_used_h  = parts_h[1] or "—"
-            disk_free_h  = parts_h[2] or "—"
-
-    if disk_total_bytes > 0:
-        disk_num = {
-            "total_gb": round(disk_total_bytes / (1024**3)),
-            "used_gb":  round(disk_used_bytes  / (1024**3)),
-            "free_gb":  round(disk_free_bytes  / (1024**3)),
-        }
-    else:
-        disk_num = {"total_gb": 0, "used_gb": 0, "free_gb": 0}
-
-    disk_h = {
-        "total": disk_total_h,
-        "used":  disk_used_h,
-        "free":  disk_free_h,
-    }
-
-    # --- RAM ---
-    ram_total_mb = ram_used_mb = ram_free_mb = 0
-
+    # RAM
+    ram_total = ram_used = ram_free = 0
     try:
-        mem_total_kb = mem_avail_kb = 0
-        with open("/proc/meminfo", "r", errors="ignore") as f:
+        with open("/proc/meminfo", "r") as f:
+            total = avail = 0
             for line in f:
                 if line.startswith("MemTotal:"):
-                    mem_total_kb = int(line.split()[1])
-                elif line.startswith("MemAvailable:"):
-                    mem_avail_kb = int(line.split()[1])
-        if mem_total_kb > 0:
-            ram_total_mb = round(mem_total_kb / 1024)
-            avail_mb     = round(mem_avail_kb / 1024)
-            ram_used_mb  = max(0, ram_total_mb - avail_mb)
-            ram_free_mb  = avail_mb
-    except Exception:
-        # fallback to `free -m`
-        out = run_cmd("free -m | awk '/^Mem:/ {print $2\"|\"$7\"|\"$3}'")
-        if out:
-            parts = out.split("|")
-            if len(parts) >= 3:
-                try:
-                    t = int(parts[0])
-                    a = int(parts[1])
-                    u = int(parts[2])
-                    ram_total_mb = t
-                    ram_used_mb  = max(0, t - a)
-                    ram_free_mb  = a
-                except Exception:
-                    pass
+                    total = int(line.split()[1])
+                if line.startswith("MemAvailable:"):
+                    avail = int(line.split()[1])
+            if total > 0:
+                ram_total = round(total / 1024)
+                ram_free = round(avail / 1024)
+                ram_used = ram_total - ram_free
+    except:
+        pass
 
-    # --- CPU PCT (like vmstat logic) ---
+    # CPU usage
     cpu_pct = 0.0
-    vm_out = run_cmd("vmstat 1 2 | tail -1")
-    if vm_out:
-        cols = vm_out.split()
-        # idle is usually the 15th column; we just guard by length
-        try:
-            if len(cols) >= 15:
-                idle = float(cols[14])
-                cpu_pct = max(0.0, min(100.0, 100.0 - idle))
-        except Exception:
-            pass
-
-    # --- VCPU COUNT ---
-    vcpu = 0
-    out_nproc = run_cmd("nproc 2>/dev/null || grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 0")
-    if out_nproc:
-        try:
-            vcpu = int(out_nproc)
-        except Exception:
-            vcpu = 0
+    vm = run_cmd("vmstat 1 2 | tail -1")
+    if vm:
+        cols = vm.split()
+        if len(cols) >= 15:
+            try:
+                cpu_pct = max(0, min(100, 100 - float(cols[14])))
+            except:
+                pass
 
     specs = {
-        "vcpu": vcpu if vcpu > 0 else "—",
-        "ram_mb": ram_total_mb,
-        "ram_used_mb": ram_used_mb,
-        "ram_free_mb": ram_free_mb,
-        "disk": disk_h,
+        "vcpu": int(run_cmd("nproc") or 0),
+        "ram_mb": ram_total,
+        "ram_used_mb": ram_used,
+        "ram_free_mb": ram_free,
+        "disk": {
+            "total": disk_total,
+            "used": disk_used,
+            "free": disk_free,
+        },
         "disk_num": disk_num,
         "cpu_pct": cpu_pct,
     }
@@ -333,74 +262,21 @@ def get_meta_and_specs():
     return meta, specs
 
 # ============================================================
-#  SYSTEM (simple CPU/RAM string for existing AJAX)
-# ============================================================
-def get_system_info():
-    # CPU % (string)
-    cpu_pct_str = "0.0"
-    vm_out = run_cmd("vmstat 1 2 | tail -1")
-    if vm_out:
-        cols = vm_out.split()
-        try:
-            if len(cols) >= 15:
-                idle = float(cols[14])
-                cpu_pct_val = max(0.0, min(100.0, 100.0 - idle))
-                cpu_pct_str = f"{cpu_pct_val:.1f}"
-        except Exception:
-            pass
-
-    # RAM used/total (GB)
-    used_mb = total_mb = 0
-    try:
-        with open("/proc/meminfo", "r", errors="ignore") as f:
-            mem_total_kb = mem_avail_kb = 0
-            for line in f:
-                if line.startswith("MemTotal:"):
-                    mem_total_kb = int(line.split()[1])
-                elif line.startswith("MemAvailable:"):
-                    mem_avail_kb = int(line.split()[1])
-        if mem_total_kb > 0:
-            total_mb = round(mem_total_kb / 1024)
-            avail_mb = round(mem_avail_kb / 1024)
-            used_mb  = max(0, total_mb - avail_mb)
-    except Exception:
-        out = run_cmd("free -m | awk '/^Mem:/ {print $2\"|\"$7\"|\"$3}'")
-        if out:
-            parts = out.split("|")
-            if len(parts) >= 3:
-                try:
-                    t = int(parts[0])
-                    a = int(parts[1])
-                    u = int(parts[2])
-                    total_mb = t
-                    used_mb  = max(0, t - a)
-                except Exception:
-                    pass
-
-    used_gb  = used_mb / 1024.0 if total_mb > 0 else 0.0
-    total_gb = total_mb / 1024.0 if total_mb > 0 else 0.0
-
-    return {
-        "cpu_usage": f"{cpu_pct_str}%",
-        "ram_usage": f"{used_gb:.1f}GB/{total_gb:.1f}GB"
-    }
-
-# ============================================================
-#  SERVICE CHECKS
+#  SERVICES
 # ============================================================
 SERVICES = {
-    "multiplexer":"JuanTCP.service",
-    "ssh":"juansshd.service",
-    "slowdns":"JuanDNSTT.service",
-    "websocket":"JuanWS.service",
-    "stunnel":"stunnel4.service",
-    "openvpn":"openvpn-server@tcp.service",
-    "nginx":"nginx.service",
-    "xray":"xray.service",
-    "hysteria":"udp.service",
-    "ddos":"ddos.service",
-    "badvpn":"badvpn-udpgw.service",
-    "squid":"squid.service"
+    "multiplexer": "JuanTCP.service",
+    "ssh": "juansshd.service",
+    "slowdns": "JuanDNSTT.service",
+    "websocket": "JuanWS.service",
+    "stunnel": "stunnel4.service",
+    "openvpn": "openvpn-server@tcp.service",
+    "nginx": "nginx.service",
+    "xray": "xray.service",
+    "hysteria": "udp.service",
+    "ddos": "ddos.service",
+    "badvpn": "badvpn-udpgw.service",
+    "squid": "squid.service"
 }
 
 def check_service(unit):
@@ -408,22 +284,20 @@ def check_service(unit):
         return "active" if subprocess.call(
             ["systemctl", "is-active", "--quiet", unit]
         ) == 0 else "inactive"
-    except Exception:
+    except:
         return "inactive"
 
 def get_services_status():
     return {name: check_service(unit) for name, unit in SERVICES.items()}
 
 # ============================================================
-#  UUID / KEY (best-effort, used by infoPage)
+#  UUID + KEY
 # ============================================================
 def get_uuid_and_key():
-    uuid = read_first_line("/etc/xray/uuid")
-    key  = read_first_line("/etc/JuanScript/server.pub")
-    return uuid, key
+    return read_first_line("/etc/xray/uuid"), read_first_line("/etc/JuanScript/server.pub")
 
 # ============================================================
-#  API ROUTES
+#  ROUTES
 # ============================================================
 @app.route("/status")
 def status():
@@ -450,7 +324,7 @@ def status():
 
 @app.route("/")
 def home():
-    return Response(json.dumps({"message":"Use /status"}, indent=4), mimetype="application/json")
+    return Response(json.dumps({"message": "Use /status"}, indent=4), mimetype="application/json")
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
