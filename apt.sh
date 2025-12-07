@@ -123,13 +123,15 @@ def get_openvpn_tcp_users():
 # ============================================================
 def get_hysteria_users():
     """
-    Count actual connected Hysteria UDP users by parsing ONLY:
-      - "client connected"     => add session
-      - "client disconnected"  => remove session
+    Count active Hysteria users using only:
+      - 'Client connected'
+      - 'Client disconnected'
+    from journalctl for udp.service.
 
-    Session key is ip:port so:
-      - 2 devices behind same IP (different ports) = 2 users
-      - when one disconnects, the other stays counted
+    Each unique src IP:PORT is treated as one device/session.
+    We replay the log since boot so the LAST state wins:
+      connected   -> 1
+      disconnected-> 0
     """
     try:
         proc = subprocess.Popen(
@@ -141,33 +143,31 @@ def get_hysteria_users():
     except Exception:
         return 0
 
-    sessions = set()
-    pattern = re.compile(r"\[src:([0-9a-fA-F\.:]+):(\d+)\]")
-
     if not proc.stdout:
         return 0
 
-    for line in proc.stdout:
-        low = line.lower()
-        # Only care about real session connect/disconnect events
-        if "client connected" not in low and "client disconnected" not in low:
-            continue
+    # map "ip:port" -> 0 / 1 (disconnected / connected)
+    state = {}
+    pattern = re.compile(r"\[src:([0-9a-fA-F\.:]+):(\d+)\]")
 
+    for line in proc.stdout:
         m = pattern.search(line)
         if not m:
             continue
 
         ip = m.group(1)
         port = m.group(2)
-        key = f"{ip}:{port}"
+        ipport = f"{ip}:{port}"
+        lower = line.lower()
 
-        if "client connected" in low:
-            sessions.add(key)
+        if "client connected" in lower:
+            state[ipport] = 1
+        elif "client disconnected" in lower:
+            state[ipport] = 0
 
-        if "client disconnected" in low:
-            sessions.discard(key)
-
-    return len(sessions)
+    # active sessions = ip:port entries with final state == 1
+    active_sessions = sum(1 for v in state.values() if v == 1)
+    return active_sessions
 
 # ============================================================
 #  META + SPECS (for infoPage)
