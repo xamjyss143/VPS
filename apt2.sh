@@ -123,15 +123,21 @@ def get_openvpn_tcp_users():
 # ============================================================
 def get_hysteria_users():
     """
-    Count active Hysteria users using only:
-      - 'Client connected'
-      - 'Client disconnected'
-    from journalctl for udp.service.
+    Count unique *IP addresses* which are currently connected,
+    based ONLY on these lines in udp.service logs:
 
-    Each unique src IP:PORT is treated as one device/session.
-    We replay the log since boot so the LAST state wins:
-      connected   -> 1
-      disconnected-> 0
+        [INFO] [src:IP:PORT] Client connected
+        [INFO] [src:IP:PORT] ... Client disconnected
+
+    Logic:
+      - We ignore ports and all TCP request / EOF / error spam.
+      - For each line:
+          * "Client connected"   -> mark ip as True (connected)
+          * "Client disconnected"-> mark ip as False (disconnected)
+      - We process journalctl output in order, so the *last* event
+        for that IP decides its final state.
+      - When we see "Server up and running", we clear the map,
+        since that indicates a fresh hysteria start.
     """
     try:
         proc = subprocess.Popen(
@@ -146,28 +152,29 @@ def get_hysteria_users():
     if not proc.stdout:
         return 0
 
-    # map "ip:port" -> 0 / 1 (disconnected / connected)
-    state = {}
+    # ip -> bool (True = currently connected)
+    ip_state = {}
     pattern = re.compile(r"\[src:([0-9a-fA-F\.:]+):(\d+)\]")
 
     for line in proc.stdout:
+        # reset state on server restart marker
+        if "Server up and running" in line:
+            ip_state.clear()
+            continue
+
         m = pattern.search(line)
         if not m:
             continue
 
         ip = m.group(1)
-        port = m.group(2)
-        ipport = f"{ip}:{port}"
-        lower = line.lower()
 
-        if "client connected" in lower:
-            state[ipport] = 1
-        elif "client disconnected" in lower:
-            state[ipport] = 0
+        if "Client connected" in line:
+            ip_state[ip] = True
+        elif "Client disconnected" in line:
+            ip_state[ip] = False
 
-    # active sessions = ip:port entries with final state == 1
-    active_sessions = sum(1 for v in state.values() if v == 1)
-    return active_sessions
+    # count how many IPs are marked as connected
+    return sum(1 for v in ip_state.values() if v)
 
 # ============================================================
 #  META + SPECS (for infoPage)
