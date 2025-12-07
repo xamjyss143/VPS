@@ -123,21 +123,14 @@ def get_openvpn_tcp_users():
 # ============================================================
 def get_hysteria_users():
     """
-    Count unique *IP addresses* which are currently connected,
-    based ONLY on these lines in udp.service logs:
+    Count active Hysteria UDP clients based on number of:
+        'Client connected'
+    minus
+        'Client disconnected'
+    since the last 'Server up and running' marker.
 
-        [INFO] [src:IP:PORT] Client connected
-        [INFO] [src:IP:PORT] ... Client disconnected
-
-    Logic:
-      - We ignore ports and all TCP request / EOF / error spam.
-      - For each line:
-          * "Client connected"   -> mark ip as True (connected)
-          * "Client disconnected"-> mark ip as False (disconnected)
-      - We process journalctl output in order, so the *last* event
-        for that IP decides its final state.
-      - When we see "Server up and running", we clear the map,
-        since that indicates a fresh hysteria start.
+    - Multiple connections from the SAME IP are all counted.
+    - If there are 4 connects and 1 disconnect, result = 3.
     """
     try:
         proc = subprocess.Popen(
@@ -152,29 +145,24 @@ def get_hysteria_users():
     if not proc.stdout:
         return 0
 
-    # ip -> bool (True = currently connected)
-    ip_state = {}
-    pattern = re.compile(r"\[src:([0-9a-fA-F\.:]+):(\d+)\]")
+    active = 0
 
     for line in proc.stdout:
-        # reset state on server restart marker
+        # Reset from last server start marker
         if "Server up and running" in line:
-            ip_state.clear()
+            active = 0
             continue
-
-        m = pattern.search(line)
-        if not m:
-            continue
-
-        ip = m.group(1)
 
         if "Client connected" in line:
-            ip_state[ip] = True
+            active += 1
         elif "Client disconnected" in line:
-            ip_state[ip] = False
+            if active > 0:
+                active -= 1
 
-    # count how many IPs are marked as connected
-    return sum(1 for v in ip_state.values() if v)
+    if active < 0:
+        active = 0
+
+    return active
 
 # ============================================================
 #  META + SPECS (for infoPage)
