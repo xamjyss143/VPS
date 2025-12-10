@@ -463,45 +463,48 @@ TimeoutStartSec=30
 WantedBy=multi-user.target
 EOF
 
-echo "[3.5/4] Creating global healthcheck (restart ALL services if API is down)..."
+echo "[3.5/4] Creating global healthcheck (reboot VPS after repeated failures)..."
 cat > /usr/local/bin/${SERVICE_NAME}-healthcheck.sh <<'EOF'
 #!/bin/bash
-URL="http://127.0.0.1:5000/status"
 
-# Try once (you can add retries here if you want)
-if curl -fsS --max-time 60 "$URL" >/dev/null 2>&1; then
+URL="http://127.0.0.1:5000/status"
+STATE_FILE="/run/vps-status_failcount"
+MAX_FAILS=5
+
+# Try once (fast check; timer runs every 60s)
+if curl -fsS --max-time 10 "$URL" >/dev/null 2>&1; then
+    # Success: reset counter
+    rm -f "$STATE_FILE" 2>/dev/null || true
     exit 0
 fi
 
-echo "[healthcheck] $URL unreachable, restarting core services..."
+# Load current fail count
+FAILS=0
+if [ -f "$STATE_FILE" ]; then
+    FAILS=$(cat "$STATE_FILE" 2>/dev/null || echo 0)
+fi
 
-SERVICES=(
-  "vps-status.service"
-  "JuanTCP.service"
-  "juansshd.service"
-  "JuanDNSTT.service"
-  "JuanWS.service"
-  "stunnel4.service"
-  "openvpn-server@tcp.service"
-  "nginx.service"
-  "xray.service"
-  "udp.service"
-  "ddos.service"
-  "badvpn-udpgw.service"
-  "squid.service"
-)
+FAILS=$((FAILS + 1))
+echo "$FAILS" > "$STATE_FILE"
 
-for svc in "${SERVICES[@]}"; do
-    echo " - restarting $svc"
-    systemctl restart "$svc" 2>/dev/null || true
-done
+echo "[healthcheck] $URL unreachable (failure $FAILS/$MAX_FAILS)"
+
+if [ "$FAILS" -ge "$MAX_FAILS" ]; then
+    echo "[healthcheck] Reached $MAX_FAILS consecutive failures. Rebooting VPS..."
+    rm -f "$STATE_FILE" 2>/dev/null || true
+    # Reboot the system
+    /sbin/reboot || /usr/sbin/reboot || systemctl reboot
+fi
+
+# Non-zero exit code is fine, timer will still run next cycle
+exit 1
 EOF
 
 chmod +x /usr/local/bin/${SERVICE_NAME}-healthcheck.sh
 
 cat > /etc/systemd/system/${SERVICE_NAME}-health.service <<EOF
 [Unit]
-Description=Healthcheck for VPS Status API (restart all services if API is down)
+Description=Healthcheck for VPS Status API (reboot VPS after repeated failures)
 
 [Service]
 Type=oneshot
@@ -510,11 +513,11 @@ EOF
 
 cat > /etc/systemd/system/${SERVICE_NAME}-health.timer <<EOF
 [Unit]
-Description=Run VPS Status API healthcheck every 1 minute
+Description=Run VPS Status API healthcheck every 60 seconds
 
 [Timer]
 OnBootSec=30
-OnUnitActiveSec=1800
+OnUnitActiveSec=60
 Unit=${SERVICE_NAME}-health.service
 
 [Install]
