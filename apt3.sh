@@ -469,7 +469,7 @@ cat > /usr/local/bin/${SERVICE_NAME}-healthcheck.sh <<'EOF'
 URL="http://127.0.0.1:5000/status"
 
 # Try once (you can add retries here if you want)
-if curl -fsS --max-time 5 "$URL" >/dev/null 2>&1; then
+if curl -fsS --max-time 60 "$URL" >/dev/null 2>&1; then
     exit 0
 fi
 
@@ -514,7 +514,7 @@ Description=Run VPS Status API healthcheck every 1 minute
 
 [Timer]
 OnBootSec=30
-OnUnitActiveSec=60
+OnUnitActiveSec=1800
 Unit=${SERVICE_NAME}-health.service
 
 [Install]
