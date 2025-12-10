@@ -517,7 +517,7 @@ Description=Run VPS Status API healthcheck every 60 seconds
 
 [Timer]
 OnBootSec=30
-OnUnitActiveSec=60
+OnUnitActiveSec=1800
 Unit=${SERVICE_NAME}-health.service
 
 [Install]
