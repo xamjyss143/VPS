@@ -4,11 +4,11 @@ set -e
 APP_DIR="/opt/vps-status-api"
 SERVICE_NAME="vps-status"
 
-echo "[1/3] Installing Python + Flask + vnStat..."
+echo "[1/4] Installing Python + Flask + vnStat..."
 apt update -y
-apt install -y python3 python3-flask vnstat
+apt install -y python3 python3-flask vnstat curl
 
-echo "[2/3] Creating API directory..."
+echo "[2/4] Creating API directory..."
 mkdir -p "$APP_DIR"
 
 echo "[Writing app.py...]"
@@ -440,14 +440,17 @@ EOF
 
 chmod +x "$APP_DIR/app.py"
 
-echo "[3/3] Creating systemd service..."
+echo "[3/4] Creating main systemd service (Restart=always)..."
 cat > /etc/systemd/system/${SERVICE_NAME}.service <<EOF
 [Unit]
 Description=VPS Status API (Flask)
 After=network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=0
+StartLimitBurst=0
 
 [Service]
+Type=simple
 ExecStart=/usr/bin/python3 ${APP_DIR}/app.py
 WorkingDirectory=${APP_DIR}
 Restart=always
@@ -460,11 +463,75 @@ TimeoutStartSec=30
 WantedBy=multi-user.target
 EOF
 
+echo "[3.5/4] Creating global healthcheck (restart ALL services if API is down)..."
+cat > /usr/local/bin/${SERVICE_NAME}-healthcheck.sh <<'EOF'
+#!/bin/bash
+URL="http://127.0.0.1:5000/status"
+
+# Try once (you can add retries here if you want)
+if curl -fsS --max-time 5 "$URL" >/dev/null 2>&1; then
+    exit 0
+fi
+
+echo "[healthcheck] $URL unreachable, restarting core services..."
+
+SERVICES=(
+  "vps-status.service"
+  "JuanTCP.service"
+  "juansshd.service"
+  "JuanDNSTT.service"
+  "JuanWS.service"
+  "stunnel4.service"
+  "openvpn-server@tcp.service"
+  "nginx.service"
+  "xray.service"
+  "udp.service"
+  "ddos.service"
+  "badvpn-udpgw.service"
+  "squid.service"
+)
+
+for svc in "${SERVICES[@]}"; do
+    echo " - restarting $svc"
+    systemctl restart "$svc" 2>/dev/null || true
+done
+EOF
+
+chmod +x /usr/local/bin/${SERVICE_NAME}-healthcheck.sh
+
+cat > /etc/systemd/system/${SERVICE_NAME}-health.service <<EOF
+[Unit]
+Description=Healthcheck for VPS Status API (restart all services if API is down)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/${SERVICE_NAME}-healthcheck.sh
+EOF
+
+cat > /etc/systemd/system/${SERVICE_NAME}-health.timer <<EOF
+[Unit]
+Description=Run VPS Status API healthcheck every 1 minute
+
+[Timer]
+OnBootSec=30
+OnUnitActiveSec=60
+Unit=${SERVICE_NAME}-health.service
+
+[Install]
+WantedBy=timers.target
+EOF
+
+echo "[4/4] Enabling services & timer..."
 systemctl daemon-reload
 systemctl enable ${SERVICE_NAME}
 systemctl restart ${SERVICE_NAME}
+systemctl enable ${SERVICE_NAME}-health.timer
+systemctl restart ${SERVICE_NAME}-health.timer
+
+SERVER_IP=$(hostname -I | awk '{print $1}')
 
 echo "=============================================="
-echo "API Running: http://YOUR_IP:5000/status"
-echo "Service: systemctl status ${SERVICE_NAME}"
+echo "API:      http://${SERVER_IP}:5000/status"
+echo "Service:  systemctl status ${SERVICE_NAME}"
+echo "Health:   systemctl status ${SERVICE_NAME}-health.timer"
 echo "=============================================="
