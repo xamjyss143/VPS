@@ -26,7 +26,7 @@ set -euo pipefail
 
 PANEL_URL="${PANEL_URL}"
 
-# Prefer IPv4 (panel server IP is usually stored as IPv4)
+# Prefer IPv4
 SERVER_IP="\$(curl -4 -sS --max-time 10 ifconfig.me || true)"
 if [ -z "\$SERVER_IP" ]; then
   SERVER_IP="\$(curl -4 -sS --max-time 10 https://api.ipify.org || true)"
@@ -48,45 +48,32 @@ HTTP_CODE="\$(curl -sS -L -o "\$TMP" -w "%{http_code}" \
 
 if [ "\$HTTP_CODE" != "200" ]; then
   echo "!! HTTP \$HTTP_CODE when calling \$API_URL"
-  echo "!! Body preview:"
   head -c 300 "\$TMP" || true
-  echo ""
-  rm -f "\$TMP"
-  exit 1
-fi
-
-if ! jq -e . "\$TMP" >/dev/null 2>&1; then
-  echo "!! Response is not valid JSON from \$API_URL"
-  echo "!! Body preview:"
-  head -c 300 "\$TMP" || true
-  echo ""
   rm -f "\$TMP"
   exit 1
 fi
 
 ok="\$(jq -r '.ok // false' "\$TMP")"
 if [ "\$ok" != "true" ]; then
-  echo "!! API returned ok=false"
   cat "\$TMP"
   rm -f "\$TMP"
   exit 1
 fi
 
+# =============================
+# CREATE / SYNC ACCOUNTS
+# =============================
 jq -c '.accounts[]?' "\$TMP" | while read -r acc; do
   id="\$(echo "\$acc" | jq -r '.id')"
   username="\$(echo "\$acc" | jq -r '.username')"
   password="\$(echo "\$acc" | jq -r '.password')"
   date_expired="\$(echo "\$acc" | jq -r '.date_expired // empty')"
 
-  if [ -z "\$username" ] || [ -z "\$password" ] || [ "\$username" = "null" ] || [ "\$password" = "null" ]; then
-    echo "!! Skipping invalid account payload: \$acc"
+  if [ -z "\$username" ] || [ -z "\$password" ] || [ "\$username" = "null" ]; then
     continue
   fi
 
-  # ✅ FAST check (better than `id`)
   if getent passwd "\$username" >/dev/null 2>&1; then
-    echo "✔ \$username already exists"
-    # still notify panel per-server
     curl -sS -X POST \
       -H "Accept: application/json" \
       -H "Content-Type: application/json" \
@@ -95,29 +82,44 @@ jq -c '.accounts[]?' "\$TMP" | while read -r acc; do
     continue
   fi
 
-  echo "➕ Creating \$username (expires: \${date_expired:-none})"
-
-  # Create user with optional expiry date
   if [ -n "\$date_expired" ] && [ "\$date_expired" != "null" ]; then
     useradd "\$username" -s /bin/false -e "\$date_expired"
   else
     useradd "\$username" -s /bin/false
   fi
 
-  # Set password non-interactive
   echo -e "\$password\\n\$password" | passwd "\$username" >/dev/null
 
-  # ✅ notify panel per-server
   curl -sS -X POST \
     -H "Accept: application/json" \
     -H "Content-Type: application/json" \
     -d "{\\"id\\":\${id},\\"ip\\":\\"\${SERVER_IP}\\"}" \
     "\${PANEL_URL}/api/accounts/synced" >/dev/null 2>&1 || true
-
-  echo "✅ Synced \$username"
 done
 
 rm -f "\$TMP"
+
+# =============================
+# DELETE ACCOUNTS REMOVED IN DB
+# =============================
+DEL_URL="\${PANEL_URL}/api/server/\${SERVER_IP_ENC}/accounts-deleted"
+DEL_TMP="\$(mktemp)"
+
+HTTP_CODE="\$(curl -sS -L -o "\$DEL_TMP" -w "%{http_code}" \
+  -H "Accept: application/json" \
+  --max-time 20 \
+  "\$DEL_URL" || true)"
+
+if [ "\$HTTP_CODE" = "200" ] && jq -e '.ok == true' "\$DEL_TMP" >/dev/null 2>&1; then
+  jq -c '.accounts[]?' "\$DEL_TMP" | while read -r acc; do
+    username="\$(echo "\$acc" | jq -r '.username')"
+    if getent passwd "\$username" >/dev/null 2>&1; then
+      userdel -r "\$username" || true
+    fi
+  done
+fi
+
+rm -f "\$DEL_TMP"
 EOF
 
 chmod +x "$SYNC_SCRIPT_PATH"
@@ -150,12 +152,8 @@ Unit=xjvpn-account-sync.service
 WantedBy=timers.target
 EOF
 
-echo "==> Reloading systemd + enabling timer..."
 systemctl daemon-reexec
 systemctl daemon-reload
 systemctl enable --now xjvpn-account-sync.timer
 
-echo ""
-echo "✅ Done!"
-echo "Check timer:   systemctl list-timers | grep xjvpn"
-echo "View logs:     journalctl -u xjvpn-account-sync.service -f"
+echo "✅ Done"
