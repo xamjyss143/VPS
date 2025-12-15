@@ -25,47 +25,105 @@ cat > "$SYNC_SCRIPT_PATH" <<EOF
 set -euo pipefail
 
 PANEL_URL="${PANEL_URL}"
-SERVER_IP="\$(curl -s ifconfig.me)"
-API_URL="\$PANEL_URL/api/server/\$SERVER_IP/accounts"
 
-json=\$(curl -s "\$API_URL")
+# Prefer IPv4 (panel server IP is usually stored as IPv4)
+SERVER_IP="\$(curl -4 -sS --max-time 10 ifconfig.me || true)"
+if [ -z "\$SERVER_IP" ]; then
+  SERVER_IP="\$(curl -4 -sS --max-time 10 https://api.ipify.org || true)"
+fi
 
-ok=\$(echo "\$json" | jq -r '.ok')
-[ "\$ok" != "true" ] && exit 1
+if [ -z "\$SERVER_IP" ]; then
+  echo "!! Could not detect SERVER_IP (IPv4)"
+  exit 1
+fi
 
-echo "\$json" | jq -c '.accounts[]' | while read -r acc; do
-  id=\$(echo "\$acc" | jq -r '.id')
-  username=\$(echo "\$acc" | jq -r '.username')
-  password=\$(echo "\$acc" | jq -r '.password')
-  date_expired=\$(echo "\$acc" | jq -r '.date_expired // empty')
+# URL-encode IP just in case
+SERVER_IP_ENC="\$(printf '%s' "\$SERVER_IP" | jq -sRr @uri)"
 
-  if id "\$username" >/dev/null 2>&1; then
-    echo "✔ \$username already exists"
+API_URL="\${PANEL_URL}/api/server/\${SERVER_IP_ENC}/accounts"
+TMP="\$(mktemp)"
+
+# Fetch JSON (save body to TMP)
+HTTP_CODE="\$(curl -sS -L -o "\$TMP" -w "%{http_code}" \\
+  -H "Accept: application/json" \\
+  --max-time 20 \\
+  "\$API_URL" || true)"
+
+if [ "\$HTTP_CODE" != "200" ]; then
+  echo "!! HTTP \$HTTP_CODE when calling \$API_URL"
+  echo "!! Body preview:"
+  head -c 300 "\$TMP" || true
+  echo ""
+  rm -f "\$TMP"
+  exit 1
+fi
+
+# Validate JSON
+if ! jq -e . "\$TMP" >/dev/null 2>&1; then
+  echo "!! Response is not valid JSON from \$API_URL"
+  echo "!! Body preview:"
+  head -c 300 "\$TMP" || true
+  echo ""
+  rm -f "\$TMP"
+  exit 1
+fi
+
+ok="\$(jq -r '.ok // false' "\$TMP")"
+if [ "\$ok" != "true" ]; then
+  echo "!! API returned ok=false"
+  echo "\$(cat "\$TMP")"
+  rm -f "\$TMP"
+  exit 1
+fi
+
+# Process accounts
+jq -c '.accounts[]?' "\$TMP" | while read -r acc; do
+  id="\$(echo "\$acc" | jq -r '.id')"
+  username="\$(echo "\$acc" | jq -r '.username')"
+  password="\$(echo "\$acc" | jq -r '.password')"
+  date_expired="\$(echo "\$acc" | jq -r '.date_expired // empty')"
+
+  # basic guards
+  if [ -z "\$username" ] || [ -z "\$password" ] || [ "\$username" = "null" ] || [ "\$password" = "null" ]; then
+    echo "!! Skipping invalid account payload: \$acc"
     continue
   fi
 
-  # Build useradd expiry flag if date_expired exists (YYYY-MM-DD)
-  expire_flag=""
-  if [ -n "\$date_expired" ]; then
-    expire_flag="-e \$date_expired"
+  if id "\$username" >/dev/null 2>&1; then
+    echo "✔ \$username already exists"
+    # mark as synced anyway (optional)
+    curl -sS -X POST \\
+      -H "Accept: application/json" \\
+      -H "Content-Type: application/json" \\
+      -d "{\\"id\\": \$id}" \\
+      "\${PANEL_URL}/api/accounts/synced" >/dev/null 2>&1 || true
+    continue
   fi
 
   echo "➕ Creating \$username (expires: \${date_expired:-none})"
 
-  # Create user (no shell login) + optional expiry date
-  useradd "\$username" -s /bin/false \$expire_flag
+  if [ -n "\$date_expired" ] && [ "\$date_expired" != "null" ]; then
+    # create with expiry date
+    useradd "\$username" -s /bin/false -e "\$date_expired"
+  else
+    # create without expiry
+    useradd "\$username" -s /bin/false
+  fi
 
-  # Set password (non-interactive)
+  # set password (non-interactive)
   echo -e "\$password\\n\$password" | passwd "\$username" >/dev/null
 
   # notify panel (mark as synced)
-  curl -s -X POST \\
+  curl -sS -X POST \\
+    -H "Accept: application/json" \\
     -H "Content-Type: application/json" \\
     -d "{\\"id\\": \$id}" \\
-    "\$PANEL_URL/api/accounts/synced" >/dev/null
+    "\${PANEL_URL}/api/accounts/synced" >/dev/null
 
   echo "✅ Synced \$username"
 done
+
+rm -f "\$TMP"
 EOF
 
 chmod +x "$SYNC_SCRIPT_PATH"
