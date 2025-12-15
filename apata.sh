@@ -114,11 +114,11 @@ jq -c '.accounts[]?' "\$TMP" | while read -r acc; do
   echo -e "\$password\\n\$password" | passwd "\$username" >/dev/null
 
   # notify panel (mark as synced)
-  curl -sS -X POST \\
-    -H "Accept: application/json" \\
-    -H "Content-Type: application/json" \\
-    -d "{\\"id\\": \$id}" \\
-    "\${PANEL_URL}/api/accounts/synced" >/dev/null
+curl -s -X POST \
+  -H "Content-Type: application/json" \
+  -d "{\"id\":$id,\"ip\":\"$SERVER_IP\"}" \
+  "$PANEL_URL/api/accounts/synced" >/dev/null
+
 
   echo "✅ Synced \$username"
 done
