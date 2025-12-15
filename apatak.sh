@@ -38,17 +38,25 @@ if [ -z "\$SERVER_IP" ]; then
 fi
 
 SERVER_IP_ENC="\$(printf '%s' "\$SERVER_IP" | jq -sRr @uri)"
-API_URL="\${PANEL_URL}/api/server/\${SERVER_IP_ENC}/accounts"
-TMP="\$(mktemp)"
 
+API_URL="\${PANEL_URL}/api/server/\${SERVER_IP_ENC}/accounts"
+DEL_URL="\${PANEL_URL}/api/server/\${SERVER_IP_ENC}/accounts/deleted"
+SYNC_URL="\${PANEL_URL}/api/accounts/synced"
+DEL_SYNC_URL="\${PANEL_URL}/api/accounts/deleted-synced"
+
+# =============================
+# FETCH NEW ACCOUNTS
+# =============================
+TMP="\$(mktemp)"
 HTTP_CODE="\$(curl -sS -L -o "\$TMP" -w "%{http_code}" \
   -H "Accept: application/json" \
-  --max-time 20 \
-  "\$API_URL" || true)"
+  --max-time 20 "\$API_URL" || true)"
 
 if [ "\$HTTP_CODE" != "200" ]; then
   echo "!! HTTP \$HTTP_CODE when calling \$API_URL"
+  echo "!! Body preview:"
   head -c 300 "\$TMP" || true
+  echo ""
   rm -f "\$TMP"
   exit 1
 fi
@@ -70,17 +78,19 @@ jq -c '.accounts[]?' "\$TMP" | while read -r acc; do
   password="\$(echo "\$acc" | jq -r '.password')"
   date_expired="\$(echo "\$acc" | jq -r '.date_expired // empty')"
 
-  if [ -z "\$username" ] || [ -z "\$password" ] || [ "\$username" = "null" ]; then
+  if [ -z "\$username" ] || [ -z "\$password" ] || [ "\$username" = "null" ] || [ "\$password" = "null" ]; then
+    echo "!! skip invalid payload: \$acc"
     continue
   fi
 
   if getent passwd "\$username" >/dev/null 2>&1; then
     echo "✔ exists: \$username (mark synced)"
-    curl -sS -X POST \
+    RESP="\$(curl -sS -w " HTTP:%{http_code}" -X POST \
       -H "Accept: application/json" \
       -H "Content-Type: application/json" \
       -d "{\\"id\\":\${id},\\"ip\\":\\"\${SERVER_IP}\\"}" \
-      "\${PANEL_URL}/api/accounts/synced" >/dev/null 2>&1 || true
+      "\$SYNC_URL" || true)"
+    echo "   -> synced resp: \$RESP"
     continue
   fi
 
@@ -93,11 +103,12 @@ jq -c '.accounts[]?' "\$TMP" | while read -r acc; do
 
   echo -e "\$password\\n\$password" | passwd "\$username" >/dev/null
 
-  curl -sS -X POST \
+  RESP="\$(curl -sS -w " HTTP:%{http_code}" -X POST \
     -H "Accept: application/json" \
     -H "Content-Type: application/json" \
     -d "{\\"id\\":\${id},\\"ip\\":\\"\${SERVER_IP}\\"}" \
-    "\${PANEL_URL}/api/accounts/synced" >/dev/null 2>&1 || true
+    "\$SYNC_URL" || true)"
+  echo "   -> synced resp: \$RESP"
 
   echo "✅ synced: \$username"
 done
@@ -105,19 +116,18 @@ done
 rm -f "\$TMP"
 
 # =============================
-# DELETE ACCOUNTS REMOVED IN DB
+# FETCH DELETED ACCOUNTS
 # =============================
-DEL_URL="\${PANEL_URL}/api/server/\${SERVER_IP_ENC}/accounts/deleted"
 DEL_TMP="\$(mktemp)"
-
 HTTP_CODE="\$(curl -sS -L -o "\$DEL_TMP" -w "%{http_code}" \
   -H "Accept: application/json" \
-  --max-time 20 \
-  "\$DEL_URL" || true)"
+  --max-time 20 "\$DEL_URL" || true)"
 
 if [ "\$HTTP_CODE" != "200" ]; then
   echo "!! HTTP \$HTTP_CODE when calling \$DEL_URL"
+  echo "!! Body preview:"
   head -c 300 "\$DEL_TMP" || true
+  echo ""
   rm -f "\$DEL_TMP"
   exit 0
 fi
@@ -130,34 +140,32 @@ if [ "\$ok" != "true" ]; then
   exit 0
 fi
 
+# =============================
+# DELETE + MARK DELETED SYNCED
+# =============================
 jq -c '.accounts[]?' "\$DEL_TMP" | while read -r acc; do
   id="\$(echo "\$acc" | jq -r '.id')"
   username="\$(echo "\$acc" | jq -r '.username')"
 
-  if [ -z "\$username" ] || [ "\$username" = "null" ]; then
+  if [ -z "\$username" ] || [ "\$username" = "null" ] || [ -z "\$id" ] || [ "\$id" = "null" ]; then
+    echo "!! skip invalid deleted payload: \$acc"
     continue
   fi
 
   if getent passwd "\$username" >/dev/null 2>&1; then
-    echo "🗑 deleting: \$username"
+    echo "🗑 deleting linux user: \$username"
     userdel -r "\$username" || true
-
-    # ✅ tell panel this deletion is done for THIS server
-    curl -sS -X POST \
-      -H "Accept: application/json" \
-      -H "Content-Type: application/json" \
-      -d "{\\"id\\":\${id},\\"ip\\":\\"\${SERVER_IP}\\"}" \
-      "\${PANEL_URL}/api/accounts/deleted-synced" >/dev/null 2>&1 || true
   else
     echo "↷ skip (not linux user): \$username"
-
-    # ✅ still mark deleted-synced (so panel stops sending it forever)
-    curl -sS -X POST \
-      -H "Accept: application/json" \
-      -H "Content-Type: application/json" \
-      -d "{\\"id\\":\${id},\\"ip\\":\\"\${SERVER_IP}\\"}" \
-      "\${PANEL_URL}/api/accounts/deleted-synced" >/dev/null 2>&1 || true
   fi
+
+  # ✅ ALWAYS notify panel + SHOW RESPONSE (so we know if it worked)
+  RESP="\$(curl -sS -w " HTTP:%{http_code}" -X POST \
+    -H "Accept: application/json" \
+    -H "Content-Type: application/json" \
+    -d "{\\"id\\":\${id},\\"ip\\":\\"\${SERVER_IP}\\"}" \
+    "\$DEL_SYNC_URL" || true)"
+  echo "   -> deleted-synced resp: \$RESP"
 done
 
 rm -f "\$DEL_TMP"
