@@ -55,6 +55,7 @@ fi
 
 ok="\$(jq -r '.ok // false' "\$TMP")"
 if [ "\$ok" != "true" ]; then
+  echo "!! API returned ok=false for accounts"
   cat "\$TMP"
   rm -f "\$TMP"
   exit 1
@@ -74,6 +75,7 @@ jq -c '.accounts[]?' "\$TMP" | while read -r acc; do
   fi
 
   if getent passwd "\$username" >/dev/null 2>&1; then
+    echo "✔ exists: \$username (mark synced)"
     curl -sS -X POST \
       -H "Accept: application/json" \
       -H "Content-Type: application/json" \
@@ -82,6 +84,7 @@ jq -c '.accounts[]?' "\$TMP" | while read -r acc; do
     continue
   fi
 
+  echo "➕ create: \$username"
   if [ -n "\$date_expired" ] && [ "\$date_expired" != "null" ]; then
     useradd "\$username" -s /bin/false -e "\$date_expired"
   else
@@ -95,6 +98,8 @@ jq -c '.accounts[]?' "\$TMP" | while read -r acc; do
     -H "Content-Type: application/json" \
     -d "{\\"id\\":\${id},\\"ip\\":\\"\${SERVER_IP}\\"}" \
     "\${PANEL_URL}/api/accounts/synced" >/dev/null 2>&1 || true
+
+  echo "✅ synced: \$username"
 done
 
 rm -f "\$TMP"
@@ -102,7 +107,9 @@ rm -f "\$TMP"
 # =============================
 # DELETE ACCOUNTS REMOVED IN DB
 # =============================
-DEL_URL="\${PANEL_URL}/api/server/\${SERVER_IP_ENC}/accounts-deleted"
+# ✅ FIXED ENDPOINT:
+#   /api/server/{ip}/accounts/deleted
+DEL_URL="\${PANEL_URL}/api/server/\${SERVER_IP_ENC}/accounts/deleted"
 DEL_TMP="\$(mktemp)"
 
 HTTP_CODE="\$(curl -sS -L -o "\$DEL_TMP" -w "%{http_code}" \
@@ -110,14 +117,34 @@ HTTP_CODE="\$(curl -sS -L -o "\$DEL_TMP" -w "%{http_code}" \
   --max-time 20 \
   "\$DEL_URL" || true)"
 
-if [ "\$HTTP_CODE" = "200" ] && jq -e '.ok == true' "\$DEL_TMP" >/dev/null 2>&1; then
-  jq -c '.accounts[]?' "\$DEL_TMP" | while read -r acc; do
-    username="\$(echo "\$acc" | jq -r '.username')"
-    if getent passwd "\$username" >/dev/null 2>&1; then
-      userdel -r "\$username" || true
-    fi
-  done
+if [ "\$HTTP_CODE" != "200" ]; then
+  echo "!! HTTP \$HTTP_CODE when calling \$DEL_URL"
+  head -c 300 "\$DEL_TMP" || true
+  rm -f "\$DEL_TMP"
+  exit 0
 fi
+
+ok="\$(jq -r '.ok // false' "\$DEL_TMP")"
+if [ "\$ok" != "true" ]; then
+  echo "!! API returned ok=false for deleted"
+  cat "\$DEL_TMP"
+  rm -f "\$DEL_TMP"
+  exit 0
+fi
+
+jq -c '.accounts[]?' "\$DEL_TMP" | while read -r acc; do
+  username="\$(echo "\$acc" | jq -r '.username')"
+  if [ -z "\$username" ] || [ "\$username" = "null" ]; then
+    continue
+  fi
+
+  if getent passwd "\$username" >/dev/null 2>&1; then
+    echo "🗑 deleting: \$username"
+    userdel -r "\$username" || true
+  else
+    echo "↷ skip (not linux user): \$username"
+  fi
+done
 
 rm -f "\$DEL_TMP"
 EOF
