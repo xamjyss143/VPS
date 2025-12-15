@@ -107,8 +107,6 @@ rm -f "\$TMP"
 # =============================
 # DELETE ACCOUNTS REMOVED IN DB
 # =============================
-# ✅ FIXED ENDPOINT:
-#   /api/server/{ip}/accounts/deleted
 DEL_URL="\${PANEL_URL}/api/server/\${SERVER_IP_ENC}/accounts/deleted"
 DEL_TMP="\$(mktemp)"
 
@@ -133,7 +131,9 @@ if [ "\$ok" != "true" ]; then
 fi
 
 jq -c '.accounts[]?' "\$DEL_TMP" | while read -r acc; do
+  id="\$(echo "\$acc" | jq -r '.id')"
   username="\$(echo "\$acc" | jq -r '.username')"
+
   if [ -z "\$username" ] || [ "\$username" = "null" ]; then
     continue
   fi
@@ -141,8 +141,22 @@ jq -c '.accounts[]?' "\$DEL_TMP" | while read -r acc; do
   if getent passwd "\$username" >/dev/null 2>&1; then
     echo "🗑 deleting: \$username"
     userdel -r "\$username" || true
+
+    # ✅ tell panel this deletion is done for THIS server
+    curl -sS -X POST \
+      -H "Accept: application/json" \
+      -H "Content-Type: application/json" \
+      -d "{\\"id\\":\${id},\\"ip\\":\\"\${SERVER_IP}\\"}" \
+      "\${PANEL_URL}/api/accounts/deleted-synced" >/dev/null 2>&1 || true
   else
     echo "↷ skip (not linux user): \$username"
+
+    # ✅ still mark deleted-synced (so panel stops sending it forever)
+    curl -sS -X POST \
+      -H "Accept: application/json" \
+      -H "Content-Type: application/json" \
+      -d "{\\"id\\":\${id},\\"ip\\":\\"\${SERVER_IP}\\"}" \
+      "\${PANEL_URL}/api/accounts/deleted-synced" >/dev/null 2>&1 || true
   fi
 done
 
