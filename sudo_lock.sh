@@ -1,12 +1,8 @@
 #!/bin/bash
 set -e
 
-# ============================
-# CONFIG (edit these)
-# ============================
 PORT=5001
-API_KEY="CHANGE_ME_SUPER_SECRET"
-BIND_HOST="127.0.0.1"   # safer default; change to 0.0.0.0 if you really want public access
+BIND_HOST="0.0.0.0"   # PUBLIC ACCESS
 
 APP_DIR="/opt/sudo-unlock-api"
 APP_FILE="$APP_DIR/sudo_unlock_api.py"
@@ -21,14 +17,29 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
-echo "✅ Setting up sudo unlock API on port $PORT..."
+# ============================
+# Detect public IPv4
+# ============================
+PUBLIC_IP="$(curl -4 -s ifconfig.me || true)"
+
+if [[ -z "$PUBLIC_IP" ]]; then
+  PUBLIC_IP="$(curl -4 -s ipinfo.io/ip || true)"
+fi
+
+if [[ -z "$PUBLIC_IP" ]]; then
+  PUBLIC_IP="YOUR_SERVER_IP"
+fi
+
+echo "🌍 Detected public IPv4: $PUBLIC_IP"
+
+echo "✅ Installing Sudo Unlock API on port $PORT (NO AUTH, PUBLIC)..."
 
 # ============================
 # Install dependencies
 # ============================
 echo "📦 Installing dependencies..."
 apt-get update -y
-apt-get install -y python3 python3-pip python3-venv
+apt-get install -y python3 python3-pip python3-venv curl
 
 # ============================
 # Create app directory
@@ -37,16 +48,15 @@ echo "📁 Creating app directory: $APP_DIR"
 mkdir -p "$APP_DIR"
 
 # ============================
-# Create Python app
+# Create Python Flask API (NO AUTH)
 # ============================
 echo "📝 Writing Flask app to $APP_FILE"
 cat > "$APP_FILE" <<EOF
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify
 import subprocess
 import shutil
 
 app = Flask(__name__)
-API_KEY = "${API_KEY}"
 
 def run_cmd(cmd):
     try:
@@ -60,52 +70,43 @@ def user_exists(username):
     return code == 0
 
 def is_account_locked(username):
-    # passwd -S user -> second field = L (locked) or P (active)
     code, out, err = run_cmd(["passwd", "-S", username])
     if code != 0:
-        return None, f"passwd -S failed: {err or out}"
+        return None, err or out
 
     parts = out.split()
     if len(parts) >= 2:
-        status = parts[1]
-        return (status == "L"), None
+        return parts[1] == "L", None
 
     return None, "Unexpected passwd -S output"
 
 def unlock_account(username):
     actions = []
 
-    # Unlock the account itself
     code, out, err = run_cmd(["passwd", "-u", username])
     if code == 0:
         actions.append("passwd -u")
     else:
         actions.append(f"passwd -u failed: {err or out}")
 
-    # Reset faillock if present
     if shutil.which("faillock"):
         code, out, err = run_cmd(["faillock", "--user", username, "--reset"])
         if code == 0:
             actions.append("faillock --reset")
         else:
-            actions.append(f"faillock reset failed: {err or out}")
+            actions.append(f"faillock failed: {err or out}")
 
-    # Reset pam_tally2 if present
     if shutil.which("pam_tally2"):
         code, out, err = run_cmd(["pam_tally2", "--user", username, "--reset"])
         if code == 0:
             actions.append("pam_tally2 --reset")
         else:
-            actions.append(f"pam_tally2 reset failed: {err or out}")
+            actions.append(f"pam_tally2 failed: {err or out}")
 
     return actions
 
 @app.route("/unlocked/<username>", methods=["GET"])
 def unlock_user(username):
-    # API key protection
-    client_key = request.headers.get("X-API-KEY")
-    if client_key != API_KEY:
-        return jsonify({"status": "error", "message": "Unauthorized"}), 401
 
     if not user_exists(username):
         return jsonify({"status": "error", "message": "User does not exist"}), 404
@@ -141,7 +142,7 @@ if __name__ == "__main__":
 EOF
 
 # ============================
-# Setup virtualenv
+# Setup Python venv
 # ============================
 echo "🐍 Creating Python venv..."
 python3 -m venv "$VENV_DIR"
@@ -154,7 +155,7 @@ python3 -m venv "$VENV_DIR"
 echo "⚙️ Creating systemd service: $SERVICE_FILE"
 cat > "$SERVICE_FILE" <<EOF
 [Unit]
-Description=Sudo Unlock API (Flask)
+Description=Sudo Unlock API (Flask - NO AUTH)
 After=network.target
 
 [Service]
@@ -177,20 +178,31 @@ systemctl daemon-reload
 systemctl enable sudo-unlock-api
 systemctl restart sudo-unlock-api
 
-echo ""
-echo "✅ DONE!"
-echo "Service status:"
-systemctl --no-pager status sudo-unlock-api | head -n 20
+# ============================
+# Open firewall
+# ============================
+echo "🔥 Opening firewall port $PORT..."
+if command -v ufw >/dev/null 2>&1; then
+  ufw allow ${PORT}/tcp || true
+  ufw reload || true
+else
+  iptables -I INPUT -p tcp --dport ${PORT} -j ACCEPT || true
+fi
 
 echo ""
-echo "🔗 API endpoint:"
-echo "   http://<VPS-IP>:${PORT}/unlocked/<username>"
+echo "✅ DONE!"
 echo ""
-echo "🔑 Use this header:"
-echo "   X-API-KEY: ${API_KEY}"
+echo "🌍 Browser URLs:"
+echo "   http://${PUBLIC_IP}:${PORT}/unlocked/<username>"
 echo ""
-echo "Example test (localhost):"
-echo "   curl -H \"X-API-KEY: ${API_KEY}\" http://127.0.0.1:${PORT}/unlocked/testuser"
+echo "Example:"
+echo "   http://${PUBLIC_IP}:${PORT}/unlocked/root"
 echo ""
-echo "⚠️ IMPORTANT SECURITY NOTE:"
-echo "Currently binds to ${BIND_HOST}. If you change to 0.0.0.0, firewall it!"
+echo "Check service:"
+echo "   systemctl status sudo-unlock-api --no-pager"
+echo ""
+echo "Check listening:"
+echo "   ss -tulnp | grep ${PORT}"
+echo ""
+echo "⚠️ WARNING: This API is PUBLIC and has NO AUTH."
+echo "Anyone who reaches it can unlock users."
