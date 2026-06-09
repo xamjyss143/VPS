@@ -300,5 +300,9 @@ echo "Cleanup: http://127.0.0.1:$XJ_V2RAY_API_PORT/cleanup-expired"
 echo "Cleanup service runs every 3 seconds. Xray restarts only when expired UUIDs are removed from config.json."
 
 
-UUID=$(cat /etc/xray/uuid)
-curl "http://127.0.0.1:5003/create-v2?uuid=${UUID}&expire=2050-03-30"
+UUID=$(tr -d '[:space:]' < /etc/xray/uuid)
+
+until curl -fsS "http://127.0.0.1:5003/create-v2?uuid=${UUID}&expire=2050-03-30"; do
+  echo "Create failed, retrying in 2 seconds..."
+  sleep 2
+done
