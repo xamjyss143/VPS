@@ -301,4 +301,4 @@ echo "Cleanup service runs every 3 seconds. Xray restarts only when expired UUID
 
 
 UUID=$(cat /etc/xray/uuid)
-curl "http://localhost:5003/create-v2?uuid=${UUID}&expire=2050-03-30"
+curl "http://127.0.0.1:5003/create-v2?uuid=${UUID}&expire=2050-03-30"
