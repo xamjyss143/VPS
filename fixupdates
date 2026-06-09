@@ -5,10 +5,12 @@ API_PATH="/usr/local/bin/xray_v2ray_api.py"
 CLEANUP_PATH="/usr/local/bin/xray_v2ray_cleanup_loop.sh"
 API_SERVICE="/etc/systemd/system/xj-v2ray-api.service"
 CLEANUP_SERVICE="/etc/systemd/system/xj-v2ray-cleanup.service"
+
 XRAY_CONFIG_PATH="${XRAY_CONFIG_PATH:-/usr/local/etc/xray/config.json}"
 if [ ! -f "$XRAY_CONFIG_PATH" ] && [ -f "/etc/xray/config.json" ]; then
   XRAY_CONFIG_PATH="/etc/xray/config.json"
 fi
+
 XRAY_CLIENTS_PATH="${XRAY_CLIENTS_PATH:-/etc/xray/v2ray_clients.json}"
 XRAY_SERVICE_NAME="${XRAY_SERVICE_NAME:-xray}"
 XJ_V2RAY_API_PORT="${XJ_V2RAY_API_PORT:-5003}"
@@ -22,12 +24,17 @@ command -v python3 >/dev/null 2>&1 || {
   apt-get update
   apt-get install -y python3 curl
 }
+
 command -v curl >/dev/null 2>&1 || {
   apt-get update
   apt-get install -y curl
 }
 
 mkdir -p "$(dirname "$XRAY_CLIENTS_PATH")"
+mkdir -p "$(dirname "$XRAY_CONFIG_PATH")"
+
+chmod 755 "$(dirname "$XRAY_CONFIG_PATH")" || true
+[ -f "$XRAY_CONFIG_PATH" ] && chmod 644 "$XRAY_CONFIG_PATH" || true
 
 cat > "$API_PATH" <<'PYEOF'
 #!/usr/bin/env python3
@@ -44,15 +51,30 @@ from urllib.parse import parse_qs, urlparse
 
 HOST = "0.0.0.0"
 PORT = int(os.environ.get("XJ_V2RAY_API_PORT", "5003"))
+
 CONFIG_PATH = Path(os.environ.get("XRAY_CONFIG_PATH", "/usr/local/etc/xray/config.json"))
 if not CONFIG_PATH.exists():
     CONFIG_PATH = Path("/etc/xray/config.json")
+
 CLIENTS_PATH = Path(os.environ.get("XRAY_CLIENTS_PATH", "/etc/xray/v2ray_clients.json"))
 SERVICE_NAME = os.environ.get("XRAY_SERVICE_NAME", "xray")
+
 UUID_RE = re.compile(
     r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
 )
 
+def fix_permissions():
+    try:
+        CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        os.chmod(CONFIG_PATH.parent, 0o755)
+        if CONFIG_PATH.exists():
+            os.chmod(CONFIG_PATH, 0o644)
+        CLIENTS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        os.chmod(CLIENTS_PATH.parent, 0o755)
+        if CLIENTS_PATH.exists():
+            os.chmod(CLIENTS_PATH, 0o644)
+    except Exception:
+        pass
 
 def parse_expire(value):
     cleaned = (value or "").strip()
@@ -63,30 +85,33 @@ def parse_expire(value):
             pass
     raise ValueError("Invalid expire format. Use YYYY-MM-DD or YYYY-MM-DD HH:MM:SS.")
 
-
 def read_json(path, default):
     if not path.exists():
         return default
     with path.open("r", encoding="utf-8") as handle:
         return json.load(handle)
 
-
 def write_json_atomic(path, data):
     path.parent.mkdir(parents=True, exist_ok=True)
+    os.chmod(path.parent, 0o755)
+
     fd, tmp_name = tempfile.mkstemp(prefix=path.name, dir=str(path.parent))
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             json.dump(data, handle, indent=2)
             handle.write("\n")
+
+        os.chmod(tmp_name, 0o644)
         shutil.move(tmp_name, path)
+        os.chmod(path, 0o644)
     finally:
         if os.path.exists(tmp_name):
             os.remove(tmp_name)
 
-
 def restart_xray():
+    fix_permissions()
     subprocess.run(["systemctl", "restart", SERVICE_NAME], check=False)
-
+    fix_permissions()
 
 def client_template(protocol, uuid):
     if protocol in ("vless", "vmess"):
@@ -97,45 +122,54 @@ def client_template(protocol, uuid):
         return {"method": "aes-128-gcm", "password": uuid}
     return None
 
-
 def client_matches(client, uuid):
     return client.get("id") == uuid or client.get("password") == uuid
-
 
 def add_uuid_to_config(uuid):
     config = read_json(CONFIG_PATH, {})
     changed = False
+
     for inbound in config.get("inbounds", []):
         protocol = inbound.get("protocol")
         template = client_template(protocol, uuid)
         if template is None:
             continue
+
         settings = inbound.setdefault("settings", {})
         clients = settings.setdefault("clients", [])
+
         if not any(client_matches(client, uuid) for client in clients):
             clients.append(template)
             changed = True
+
     if changed:
         write_json_atomic(CONFIG_PATH, config)
-    return changed
 
+    fix_permissions()
+    return changed
 
 def remove_uuid_from_config(uuid):
     config = read_json(CONFIG_PATH, {})
     changed = False
+
     for inbound in config.get("inbounds", []):
         settings = inbound.get("settings", {})
         clients = settings.get("clients")
+
         if not isinstance(clients, list):
             continue
+
         kept = [client for client in clients if not client_matches(client, uuid)]
+
         if len(kept) != len(clients):
             settings["clients"] = kept
             changed = True
+
     if changed:
         write_json_atomic(CONFIG_PATH, config)
-    return changed
 
+    fix_permissions()
+    return changed
 
 def load_clients():
     data = read_json(CLIENTS_PATH, {"clients": {}})
@@ -144,58 +178,82 @@ def load_clients():
         clients = {}
     return clients
 
-
 def save_clients(clients):
     write_json_atomic(CLIENTS_PATH, {"clients": clients})
-
+    fix_permissions()
 
 def cleanup_expired():
     clients = load_clients()
     now = datetime.now()
     removed = []
     changed_config = False
+
     for uuid, item in list(clients.items()):
         try:
             expire_at = parse_expire(item.get("expire", ""))
         except ValueError:
             continue
+
         if expire_at <= now:
             if remove_uuid_from_config(uuid):
                 changed_config = True
             removed.append(uuid)
             clients.pop(uuid, None)
+
     if removed:
         save_clients(clients)
+
     if changed_config:
         restart_xray()
-    return removed
 
+    return removed
 
 def create_v2(uuid, expire):
     if not UUID_RE.match(uuid):
         raise ValueError("Invalid UUID.")
+
     expire_at = parse_expire(expire)
     cleanup_expired()
+
     changed_config = add_uuid_to_config(uuid)
+
     clients = load_clients()
-    clients[uuid] = {"uuid": uuid, "expire": expire_at.strftime("%Y-%m-%d %H:%M:%S")}
+    clients[uuid] = {
+        "uuid": uuid,
+        "expire": expire_at.strftime("%Y-%m-%d %H:%M:%S")
+    }
     save_clients(clients)
+
     if changed_config:
         restart_xray()
-    return {"uuid": uuid, "expire": clients[uuid]["expire"], "changed": changed_config}
 
+    return {
+        "uuid": uuid,
+        "expire": clients[uuid]["expire"],
+        "changed": changed_config
+    }
 
 def update_v2(uuid, expire):
     if not UUID_RE.match(uuid):
         raise ValueError("Invalid UUID.")
+
     expire_at = parse_expire(expire)
     clients = load_clients()
+
     if uuid not in clients:
         raise ValueError("UUID was not found.")
-    clients[uuid] = {"uuid": uuid, "expire": expire_at.strftime("%Y-%m-%d %H:%M:%S")}
-    save_clients(clients)
-    return {"uuid": uuid, "expire": clients[uuid]["expire"], "changed": False}
 
+    clients[uuid] = {
+        "uuid": uuid,
+        "expire": expire_at.strftime("%Y-%m-%d %H:%M:%S")
+    }
+    save_clients(clients)
+
+    return {
+        "uuid": uuid,
+        "expire": clients[uuid]["expire"],
+        "changed": False
+    }
 
 class Handler(BaseHTTPRequestHandler):
     def respond(self, status, payload):
@@ -209,6 +267,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         query = parse_qs(parsed.query)
+
         try:
             if parsed.path == "/create-v2":
                 uuid = query.get("uuid", [""])[0]
@@ -216,41 +275,50 @@ class Handler(BaseHTTPRequestHandler):
                 result = create_v2(uuid, expire)
                 self.respond(200, {"ok": True, "message": "V2Ray UUID created.", **result})
                 return
+
             if parsed.path == "/update":
                 uuid = query.get("uuid", [""])[0]
                 expire = query.get("expire", [""])[0]
                 result = update_v2(uuid, expire)
                 self.respond(200, {"ok": True, "message": "V2Ray UUID expiration updated.", **result})
                 return
+
             if parsed.path == "/cleanup-expired":
                 removed = cleanup_expired()
                 self.respond(200, {"ok": True, "removed": removed})
                 return
+
             if parsed.path == "/health":
+                fix_permissions()
                 self.respond(200, {"ok": True, "service": "xj-v2ray-api"})
                 return
+
             self.respond(404, {"ok": False, "message": "Not found."})
+
         except Exception as exc:
             self.respond(422, {"ok": False, "message": str(exc)})
 
     def log_message(self, fmt, *args):
         return
 
-
 if __name__ == "__main__":
+    fix_permissions()
     server = ThreadingHTTPServer((HOST, PORT), Handler)
     server.serve_forever()
 PYEOF
+
 chmod +x "$API_PATH"
 
 cat > "$CLEANUP_PATH" <<'SHEOF'
 #!/usr/bin/env bash
 set -euo pipefail
+
 while true; do
   curl -fsS "http://127.0.0.1:${XJ_V2RAY_API_PORT:-5003}/cleanup-expired" >/dev/null 2>&1 || true
   sleep 3
 done
 SHEOF
+
 chmod +x "$CLEANUP_PATH"
 
 cat > "$API_SERVICE" <<EOF
@@ -289,20 +357,32 @@ Environment=XJ_V2RAY_API_PORT=$XJ_V2RAY_API_PORT
 WantedBy=multi-user.target
 EOF
 
+chmod 644 "$API_SERVICE" "$CLEANUP_SERVICE"
+
 systemctl daemon-reload
 systemctl enable --now xj-v2ray-api.service
+systemctl restart xj-v2ray-api.service
 systemctl enable --now xj-v2ray-cleanup.service
+systemctl restart xj-v2ray-cleanup.service
+
+chmod 755 "$(dirname "$XRAY_CONFIG_PATH")" || true
+chmod 644 "$XRAY_CONFIG_PATH" || true
 
 echo "Installed XJ V2Ray API on port $XJ_V2RAY_API_PORT"
 echo "Create:  http://SERVER_IP:$XJ_V2RAY_API_PORT/create-v2?uuid=UUID&expire=YYYY-MM-DD%20HH:MM:SS"
 echo "Update:  http://SERVER_IP:$XJ_V2RAY_API_PORT/update?uuid=UUID&expire=YYYY-MM-DD%20HH:MM:SS"
 echo "Cleanup: http://127.0.0.1:$XJ_V2RAY_API_PORT/cleanup-expired"
-echo "Cleanup service runs every 3 seconds. Xray restarts only when expired UUIDs are removed from config.json."
 
+UUID="$(tr -d '[:space:]' < /etc/xray/uuid)"
 
-UUID=$(tr -d '[:space:]' < /etc/xray/uuid)
-
-until curl -fsS "http://127.0.0.1:5003/create-v2?uuid=${UUID}&expire=2050-03-30"; do
+until curl -fsS "http://127.0.0.1:$XJ_V2RAY_API_PORT/create-v2?uuid=${UUID}&expire=2050-03-30"; do
   echo "Create failed, retrying in 2 seconds..."
   sleep 2
 done
+
+echo
+systemctl restart xray || true
+chmod 755 /etc/xray || true
+chmod 644 /etc/xray/config.json || true
+systemctl restart xray || true
+systemctl status xray --no-pager || true
